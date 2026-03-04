@@ -11,6 +11,8 @@
  * License: GPL-2.0-or-later
  * License URI: https://www.gnu.org/licenses/gpl-2.0.html
  * Text Domain: ailabsaudit-tracker
+ *
+ * @package Ailabsaudit_Tracker
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -32,12 +34,20 @@ if ( is_admin() ) {
 	require_once AILABSAUDIT_PLUGIN_DIR . 'admin/class-ailabsaudit-settings.php';
 }
 
+// phpcs:ignore WordPress.Files.FileName.InvalidClassFileName -- Main plugin file.
+
 /**
  * Main plugin class — singleton.
+ *
+ * Bootstraps cron schedules, detection hooks, and admin settings.
  */
 final class Ailabsaudit_Tracker {
 
-	/** @var self|null */
+	/**
+	 * Singleton instance.
+	 *
+	 * @var self|null
+	 */
 	private static $instance = null;
 
 	/**
@@ -52,6 +62,9 @@ final class Ailabsaudit_Tracker {
 		return self::$instance;
 	}
 
+	/**
+	 * Wire up actions.
+	 */
 	private function __construct() {
 		add_action( 'init', array( $this, 'register_cron' ) );
 		add_action( 'template_redirect', array( 'Ailabsaudit_Detector', 'detect' ), 1 );
@@ -75,18 +88,26 @@ final class Ailabsaudit_Tracker {
 	 * Register custom cron schedules and schedule events.
 	 */
 	public function register_cron() {
-		add_filter( 'cron_schedules', function ( $schedules ) {
-			if ( ! isset( $schedules['ailabsaudit_five_minutes'] ) ) {
-				$schedules['ailabsaudit_five_minutes'] = array(
-					'interval' => 300,
-					'display'  => __( 'Every 5 Minutes', 'ailabsaudit-tracker' ),
-				);
+		add_filter(
+			'cron_schedules',
+			function ( $schedules ) {
+				if ( ! isset( $schedules['ailabsaudit_five_minutes'] ) ) {
+					$schedules['ailabsaudit_five_minutes'] = array(
+						'interval' => 300,
+						'display'  => __( 'Every 5 Minutes', 'ailabsaudit-tracker' ),
+					);
+				}
+				return $schedules;
 			}
-			return $schedules;
-		} );
+		);
 
 		if ( ! wp_next_scheduled( 'ailabsaudit_flush_buffer' ) ) {
-			wp_schedule_event( time(), 'ailabsaudit_five_minutes', 'ailabsaudit_flush_buffer' );
+			// phpcs:ignore WordPress.WP.CronInterval.CronSchedulesInterval -- 5-min flush is by design.
+			wp_schedule_event(
+				time(),
+				'ailabsaudit_five_minutes',
+				'ailabsaudit_flush_buffer'
+			);
 		}
 
 		if ( ! wp_next_scheduled( 'ailabsaudit_refresh_signatures' ) ) {
@@ -115,18 +136,26 @@ final class Ailabsaudit_Tracker {
 		}
 
 		// Register the custom schedule before scheduling events.
-		add_filter( 'cron_schedules', function ( $schedules ) {
-			if ( ! isset( $schedules['ailabsaudit_five_minutes'] ) ) {
-				$schedules['ailabsaudit_five_minutes'] = array(
-					'interval' => 300,
-					'display'  => 'Every 5 Minutes',
-				);
+		add_filter(
+			'cron_schedules',
+			function ( $schedules ) {
+				if ( ! isset( $schedules['ailabsaudit_five_minutes'] ) ) {
+					$schedules['ailabsaudit_five_minutes'] = array(
+						'interval' => 300,
+						'display'  => 'Every 5 Minutes',
+					);
+				}
+				return $schedules;
 			}
-			return $schedules;
-		} );
+		);
 
 		if ( ! wp_next_scheduled( 'ailabsaudit_flush_buffer' ) ) {
-			wp_schedule_event( time(), 'ailabsaudit_five_minutes', 'ailabsaudit_flush_buffer' );
+			// phpcs:ignore WordPress.WP.CronInterval.CronSchedulesInterval -- 5-min flush is by design.
+			wp_schedule_event(
+				time(),
+				'ailabsaudit_five_minutes',
+				'ailabsaudit_flush_buffer'
+			);
 		}
 		if ( ! wp_next_scheduled( 'ailabsaudit_refresh_signatures' ) ) {
 			wp_schedule_event( time(), 'daily', 'ailabsaudit_refresh_signatures' );

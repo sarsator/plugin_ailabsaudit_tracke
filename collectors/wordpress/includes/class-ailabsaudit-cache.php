@@ -10,6 +10,9 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
+/**
+ * Manages cached bot signature and AI referrer lists with API refresh.
+ */
 class Ailabsaudit_Cache {
 
 	const BOT_TRANSIENT      = 'ailabsaudit_bot_signatures';
@@ -81,10 +84,10 @@ class Ailabsaudit_Cache {
 		$signature = Ailabsaudit_Sender::sign( $timestamp, 'GET', $path, '', $secret );
 
 		$headers = array(
-			'X-API-Key'    => $api_key,
-			'X-Timestamp'  => $timestamp,
-			'X-Signature'  => $signature,
-			'User-Agent'   => 'AilabsauditTracker/' . AILABSAUDIT_VERSION,
+			'X-API-Key'   => $api_key,
+			'X-Timestamp' => $timestamp,
+			'X-Signature' => $signature,
+			'User-Agent'  => 'AilabsauditTracker/' . AILABSAUDIT_VERSION,
 		);
 
 		$etag = get_transient( self::BOT_ETAG );
@@ -92,10 +95,13 @@ class Ailabsaudit_Cache {
 			$headers['If-None-Match'] = $etag;
 		}
 
-		$response = wp_remote_get( rtrim( $api_url, '/' ) . '/bot-signatures', array(
-			'timeout' => 15,
-			'headers' => $headers,
-		) );
+		$response = wp_remote_get(
+			rtrim( $api_url, '/' ) . '/bot-signatures',
+			array(
+				'timeout' => 15,
+				'headers' => $headers,
+			)
+		);
 
 		if ( is_wp_error( $response ) ) {
 			return false;
@@ -115,9 +121,12 @@ class Ailabsaudit_Cache {
 		if ( 200 === $code ) {
 			$body = json_decode( wp_remote_retrieve_body( $response ), true );
 			if ( is_array( $body ) && isset( $body['signatures'] ) && is_array( $body['signatures'] ) ) {
-				$patterns = array_filter( array_column( $body['signatures'], 'pattern' ), function ( $p ) {
-					return is_string( $p ) && strlen( $p ) > 0 && strlen( $p ) < 256;
-				} );
+				$patterns = array_filter(
+					array_column( $body['signatures'], 'pattern' ),
+					function ( $p ) {
+						return is_string( $p ) && strlen( $p ) > 0 && strlen( $p ) < 256;
+					}
+				);
 				$patterns = array_values( $patterns );
 				if ( ! empty( $patterns ) ) {
 					set_transient( self::BOT_TRANSIENT, $patterns, self::TTL );
@@ -152,10 +161,10 @@ class Ailabsaudit_Cache {
 		$signature = Ailabsaudit_Sender::sign( $timestamp, 'GET', $path, '', $secret );
 
 		$headers = array(
-			'X-API-Key'    => $api_key,
-			'X-Timestamp'  => $timestamp,
-			'X-Signature'  => $signature,
-			'User-Agent'   => 'AilabsauditTracker/' . AILABSAUDIT_VERSION,
+			'X-API-Key'   => $api_key,
+			'X-Timestamp' => $timestamp,
+			'X-Signature' => $signature,
+			'User-Agent'  => 'AilabsauditTracker/' . AILABSAUDIT_VERSION,
 		);
 
 		$etag = get_transient( self::REFERRER_ETAG );
@@ -163,10 +172,13 @@ class Ailabsaudit_Cache {
 			$headers['If-None-Match'] = $etag;
 		}
 
-		$response = wp_remote_get( rtrim( $api_url, '/' ) . '/ai-referrers', array(
-			'timeout' => 15,
-			'headers' => $headers,
-		) );
+		$response = wp_remote_get(
+			rtrim( $api_url, '/' ) . '/ai-referrers',
+			array(
+				'timeout' => 15,
+				'headers' => $headers,
+			)
+		);
 
 		if ( is_wp_error( $response ) ) {
 			return false;
@@ -185,9 +197,12 @@ class Ailabsaudit_Cache {
 		if ( 200 === $code ) {
 			$body = json_decode( wp_remote_retrieve_body( $response ), true );
 			if ( is_array( $body ) && isset( $body['referrers'] ) && is_array( $body['referrers'] ) ) {
-				$domains = array_filter( array_column( $body['referrers'], 'domain' ), function ( $d ) {
-					return is_string( $d ) && strlen( $d ) > 0 && strlen( $d ) < 256;
-				} );
+				$domains = array_filter(
+					array_column( $body['referrers'], 'domain' ),
+					function ( $d ) {
+						return is_string( $d ) && strlen( $d ) > 0 && strlen( $d ) < 256;
+					}
+				);
 				$domains = array_values( $domains );
 				if ( ! empty( $domains ) ) {
 					set_transient( self::REFERRER_TRANSIENT, $domains, self::TTL );
@@ -210,75 +225,61 @@ class Ailabsaudit_Cache {
 	 */
 	public static function get_default_bot_signatures() {
 		return array(
-			// OpenAI
-			'GPTBot',
-			'ChatGPT-User',
-			'OAI-SearchBot',
-			'Operator',
-			// Anthropic
-			'ClaudeBot',
-			'Claude-Web',
-			'Claude-SearchBot',
-			'anthropic-ai',
-			// Google
-			'Google-Extended',
-			'GoogleOther',
-			'GoogleOther-Image',
-			'GoogleOther-Video',
-			'Google-CloudVertexBot',
-			'Googlebot',
-			// Perplexity
-			'PerplexityBot',
-			// Meta
-			'meta-externalagent',
-			'meta-externalfetcher',
-			'FacebookBot',
-			'facebookexternalhit',
-			// Microsoft / Bing
-			'bingbot',
-			'CopilotBot',
-			'MicrosoftPreview',
-			// Apple
-			'Applebot',
-			'Applebot-Extended',
-			// ByteDance
-			'Bytespider',
-			'ByteDance',
-			// Amazon / Others
-			'Amazonbot',
-			'DuckAssistBot',
-			'CCBot',
-			'Diffbot',
-			'Seekr',
-			// AI companies
-			'cohere-ai',
-			'YouBot',
-			'PetalBot',
-			'Timpibot',
-			'ImagesiftBot',
-			// Data providers
-			'omgili',
-			'Webzio',
-			'Nicecrawler',
-			'ICC-Crawler',
-			// SEO crawlers
-			'Scrapy',
-			'newspaper',
-			'AhrefsBot',
-			'SemrushBot',
-			'MJ12bot',
-			'DotBot',
-			'Rogerbot',
-			'Screaming Frog',
-			// Specialized
-			'ISSCyberRiskCrawler',
-			'Sidetrade',
-			'Owler',
-			// New AI
-			'DeepSeekBot',
-			'Mistral',
-			'Firecrawl',
-			'Jina',
+			'GPTBot',            // OpenAI.
+			'ChatGPT-User',     // OpenAI.
+			'OAI-SearchBot',    // OpenAI.
+			'Operator',         // OpenAI.
+			'ClaudeBot',        // Anthropic.
+			'Claude-Web',       // Anthropic.
+			'Claude-SearchBot', // Anthropic.
+			'anthropic-ai',     // Anthropic.
+			'Google-Extended',       // Google.
+			'GoogleOther',           // Google.
+			'GoogleOther-Image',     // Google.
+			'GoogleOther-Video',     // Google.
+			'Google-CloudVertexBot', // Google.
+			'Googlebot',             // Google.
+			'PerplexityBot',         // Perplexity.
+			'meta-externalagent',    // Meta.
+			'meta-externalfetcher',  // Meta.
+			'FacebookBot',           // Meta.
+			'facebookexternalhit',   // Meta.
+			'bingbot',          // Microsoft.
+			'CopilotBot',       // Microsoft.
+			'MicrosoftPreview', // Microsoft.
+			'Applebot',          // Apple.
+			'Applebot-Extended', // Apple.
+			'Bytespider', // ByteDance.
+			'ByteDance',  // ByteDance.
+			'Amazonbot',     // Amazon.
+			'DuckAssistBot', // DuckDuckGo.
+			'CCBot',         // Common Crawl.
+			'Diffbot',       // Diffbot.
+			'Seekr',         // Seekr.
+			'cohere-ai',     // Cohere.
+			'YouBot',        // You.com.
+			'PetalBot',      // Aspiegel.
+			'Timpibot',      // Timpi.
+			'ImagesiftBot',  // Imagesift.
+			'omgili',      // Omgili.
+			'Webzio',      // Webz.io.
+			'Nicecrawler', // Nicecrawler.
+			'ICC-Crawler', // ICC.
+			'Scrapy',          // Scrapy.
+			'newspaper',       // Newspaper.
+			'AhrefsBot',      // Ahrefs.
+			'SemrushBot',     // Semrush.
+			'MJ12bot',        // Majestic.
+			'DotBot',         // Moz.
+			'Rogerbot',       // Moz.
+			'Screaming Frog', // Screaming Frog.
+			'ISSCyberRiskCrawler', // ISS.
+			'Sidetrade',          // Sidetrade.
+			'Owler',              // Owler.
+			'DeepSeekBot', // DeepSeek.
+			'Mistral',     // Mistral.
+			'Firecrawl',   // Firecrawl.
+			'Jina',        // Jina.
 		);
 	}
 

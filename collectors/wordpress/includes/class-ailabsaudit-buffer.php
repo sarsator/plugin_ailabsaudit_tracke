@@ -10,6 +10,9 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
+/**
+ * Buffers detected events in a WordPress transient before batch sending.
+ */
 class Ailabsaudit_Buffer {
 
 	const TRANSIENT_KEY = 'ailabsaudit_event_buffer';

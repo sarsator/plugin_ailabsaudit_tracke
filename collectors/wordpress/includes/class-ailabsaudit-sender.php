@@ -12,6 +12,9 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
+/**
+ * Sends buffered events to the ingestion API with HMAC-SHA256 signatures.
+ */
 class Ailabsaudit_Sender {
 
 	const MAX_RETRIES = 3;
@@ -40,34 +43,41 @@ class Ailabsaudit_Sender {
 			return;
 		}
 
-		$payload = wp_json_encode( array(
-			'client_id'      => $client,
-			'plugin_type'    => 'wordpress',
-			'plugin_version' => AILABSAUDIT_VERSION,
-			'batch_id'       => wp_generate_uuid4(),
-			'events'         => $events,
-		), JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE );
+		$payload = wp_json_encode(
+			array(
+				'client_id'      => $client,
+				'plugin_type'    => 'wordpress',
+				'plugin_version' => AILABSAUDIT_VERSION,
+				'batch_id'       => wp_generate_uuid4(),
+				'events'         => $events,
+			),
+			JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE
+		);
 
 		$path      = '/api/v1/tracking/events';
 		$timestamp = (string) time();
 		$nonce     = wp_generate_uuid4();
 		$signature = self::sign( $timestamp, 'POST', $path, $payload, $secret );
 
-		$response = wp_remote_post( rtrim( $api_url, '/' ) . '/tracking/events', array(
-			'timeout'  => 15,
-			'blocking' => true,
-			'headers'  => array(
-				'Content-Type' => 'application/json',
-				'X-API-Key'    => $api_key,
-				'X-Timestamp'  => $timestamp,
-				'X-Nonce'      => $nonce,
-				'X-Signature'  => $signature,
-				'User-Agent'   => 'AilabsauditTracker/' . AILABSAUDIT_VERSION . ' WordPress/' . get_bloginfo( 'version' ),
-			),
-			'body'     => $payload,
-		) );
+		$response = wp_remote_post(
+			rtrim( $api_url, '/' ) . '/tracking/events',
+			array(
+				'timeout'  => 15,
+				'blocking' => true,
+				'headers'  => array(
+					'Content-Type' => 'application/json',
+					'X-API-Key'    => $api_key,
+					'X-Timestamp'  => $timestamp,
+					'X-Nonce'      => $nonce,
+					'X-Signature'  => $signature,
+					'User-Agent'   => 'AilabsauditTracker/' . AILABSAUDIT_VERSION . ' WordPress/' . get_bloginfo( 'version' ),
+				),
+				'body'     => $payload,
+			)
+		);
 
 		if ( is_wp_error( $response ) ) {
+			// phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log -- Intentional logging.
 			error_log( 'AilabsAudit: flush failed (network error).' );
 			self::re_store( $events );
 			return;
@@ -81,6 +91,7 @@ class Ailabsaudit_Sender {
 		}
 
 		if ( 401 === $code || 403 === $code ) {
+			// phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log -- Intentional logging.
 			error_log( 'AilabsAudit: authentication error.' );
 			update_option( 'ailabsaudit_status', 'auth_error' );
 			return;
@@ -147,38 +158,45 @@ class Ailabsaudit_Sender {
 			);
 		}
 
-		$payload = wp_json_encode( array(
-			'tracking_api_key' => $api_key,
-			'client_id'        => $client,
-			'domain'           => site_url(),
-			'plugin_type'      => 'wordpress',
-			'plugin_version'   => AILABSAUDIT_VERSION,
-			'server_info'      => array(
-				'php_version'  => PHP_MAJOR_VERSION . '.' . PHP_MINOR_VERSION,
-				'wp_version'   => get_bloginfo( 'version' ),
-				'is_multisite' => is_multisite(),
+		$payload = wp_json_encode(
+			array(
+				'tracking_api_key' => $api_key,
+				'client_id'        => $client,
+				'domain'           => site_url(),
+				'plugin_type'      => 'wordpress',
+				'plugin_version'   => AILABSAUDIT_VERSION,
+				'server_info'      => array(
+					'php_version'  => PHP_MAJOR_VERSION . '.' . PHP_MINOR_VERSION,
+					'wp_version'   => get_bloginfo( 'version' ),
+					'is_multisite' => is_multisite(),
+				),
 			),
-		), JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE );
+			JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE
+		);
 
 		$path      = '/api/v1/tracking/verify';
 		$timestamp = (string) time();
 		$nonce     = wp_generate_uuid4();
 		$signature = self::sign( $timestamp, 'POST', $path, $payload, $secret );
 
-		$response = wp_remote_post( rtrim( $api_url, '/' ) . '/tracking/verify', array(
-			'timeout' => 15,
-			'headers' => array(
-				'Content-Type' => 'application/json',
-				'X-API-Key'    => $api_key,
-				'X-Timestamp'  => $timestamp,
-				'X-Nonce'      => $nonce,
-				'X-Signature'  => $signature,
-				'User-Agent'   => 'AilabsauditTracker/' . AILABSAUDIT_VERSION . ' WordPress/' . get_bloginfo( 'version' ),
-			),
-			'body'    => $payload,
-		) );
+		$response = wp_remote_post(
+			rtrim( $api_url, '/' ) . '/tracking/verify',
+			array(
+				'timeout' => 15,
+				'headers' => array(
+					'Content-Type' => 'application/json',
+					'X-API-Key'    => $api_key,
+					'X-Timestamp'  => $timestamp,
+					'X-Nonce'      => $nonce,
+					'X-Signature'  => $signature,
+					'User-Agent'   => 'AilabsauditTracker/' . AILABSAUDIT_VERSION . ' WordPress/' . get_bloginfo( 'version' ),
+				),
+				'body'    => $payload,
+			)
+		);
 
 		if ( is_wp_error( $response ) ) {
+			// phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_error_log -- Intentional logging.
 			error_log( 'AilabsAudit: verify connection failed (network error).' );
 			update_option( 'ailabsaudit_status', 'connection_error' );
 			return array(

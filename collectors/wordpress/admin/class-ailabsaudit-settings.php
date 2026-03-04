@@ -10,10 +10,16 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
+/**
+ * Registers the plugin settings page under Settings > AI Labs Audit.
+ */
 class Ailabsaudit_Settings {
 
 	const PAGE_SLUG = 'ailabsaudit-tracker';
 
+	/**
+	 * Hook into WordPress admin.
+	 */
 	public function __construct() {
 		add_action( 'admin_menu', array( $this, 'add_menu' ) );
 		add_action( 'admin_init', array( $this, 'register_settings' ) );
@@ -51,18 +57,26 @@ class Ailabsaudit_Settings {
 	 * Register individual settings fields.
 	 */
 	public function register_settings() {
-		register_setting( self::PAGE_SLUG, 'ailabsaudit_api_key', array(
-			'sanitize_callback' => 'sanitize_text_field',
-		) );
-		register_setting( self::PAGE_SLUG, 'ailabsaudit_hmac_secret', array(
-			'sanitize_callback' => 'sanitize_text_field',
-		) );
-		register_setting( self::PAGE_SLUG, 'ailabsaudit_client_id', array(
-			'sanitize_callback' => 'sanitize_text_field',
-		) );
-		register_setting( self::PAGE_SLUG, 'ailabsaudit_api_url', array(
-			'sanitize_callback' => array( $this, 'sanitize_api_url' ),
-		) );
+		register_setting(
+			self::PAGE_SLUG,
+			'ailabsaudit_api_key',
+			array( 'sanitize_callback' => 'sanitize_text_field' )
+		);
+		register_setting(
+			self::PAGE_SLUG,
+			'ailabsaudit_hmac_secret',
+			array( 'sanitize_callback' => 'sanitize_text_field' )
+		);
+		register_setting(
+			self::PAGE_SLUG,
+			'ailabsaudit_client_id',
+			array( 'sanitize_callback' => 'sanitize_text_field' )
+		);
+		register_setting(
+			self::PAGE_SLUG,
+			'ailabsaudit_api_url',
+			array( 'sanitize_callback' => array( $this, 'sanitize_api_url' ) )
+		);
 
 		add_settings_section(
 			'ailabsaudit_main',
@@ -85,7 +99,10 @@ class Ailabsaudit_Settings {
 				array( $this, 'render_field' ),
 				self::PAGE_SLUG,
 				'ailabsaudit_main',
-				array( 'id' => $id, 'label' => $label )
+				array(
+					'id'    => $id,
+					'label' => $label,
+				)
 			);
 		}
 	}

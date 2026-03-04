@@ -10,6 +10,9 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
+/**
+ * Detects AI bot crawls and AI referral visits on each request.
+ */
 class Ailabsaudit_Detector {
 
 	/**
@@ -38,14 +41,16 @@ class Ailabsaudit_Detector {
 		$matched_bot    = self::match_bot( $user_agent, $bot_signatures );
 
 		if ( null !== $matched_bot ) {
-			Ailabsaudit_Buffer::add( array(
-				'type'          => 'bot_crawl',
-				'user_agent'    => substr( $user_agent, 0, 500 ),
-				'url'           => substr( $url, 0, 2000 ),
-				'timestamp'     => gmdate( 'c' ),
-				'status_code'   => http_response_code() ? http_response_code() : 200,
-				'response_size' => 0,
-			) );
+			Ailabsaudit_Buffer::add(
+				array(
+					'type'          => 'bot_crawl',
+					'user_agent'    => substr( $user_agent, 0, 500 ),
+					'url'           => substr( $url, 0, 2000 ),
+					'timestamp'     => gmdate( 'c' ),
+					'status_code'   => http_response_code() ? http_response_code() : 200,
+					'response_size' => 0,
+				)
+			);
 			return;
 		}
 
@@ -66,12 +71,14 @@ class Ailabsaudit_Detector {
 		$matched_domain = self::match_referrer( $hostname, $ai_referrers );
 
 		if ( null !== $matched_domain ) {
-			Ailabsaudit_Buffer::add( array(
-				'type'            => 'ai_referral',
-				'referrer_domain' => $matched_domain,
-				'url'             => substr( $url, 0, 2000 ),
-				'timestamp'       => gmdate( 'c' ),
-			) );
+			Ailabsaudit_Buffer::add(
+				array(
+					'type'            => 'ai_referral',
+					'referrer_domain' => $matched_domain,
+					'url'             => substr( $url, 0, 2000 ),
+					'timestamp'       => gmdate( 'c' ),
+				)
+			);
 		}
 	}
 
