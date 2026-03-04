@@ -17,6 +17,8 @@ from typing import Any, Dict, List, Optional
 from urllib.request import Request, urlopen
 from urllib.error import HTTPError, URLError
 
+from .defaults import BOT_SIGNATURES, AI_REFERRERS
+
 
 # -----------------------------------------------------------------
 # HMAC signing
@@ -68,12 +70,41 @@ class AilabsTracker:
         client_id: str,
         api_url: str = DEFAULT_API_URL,
         timeout: int = 5,
+        enable_detection: bool = False,
     ):
         self.api_key = api_key
         self.api_secret = api_secret
         self.client_id = client_id
         self.api_url = api_url.rstrip("/")
         self.timeout = timeout
+
+        self._defaults_bot = BOT_SIGNATURES
+        self._defaults_ref = AI_REFERRERS
+        self._cache = None
+        self._buffer = None
+
+        if enable_detection:
+            from .cache import ListCache
+            from .buffer import EventBuffer
+
+            self._cache = ListCache(
+                api_url=self.api_url,
+                api_key=self.api_key,
+                api_secret=self.api_secret,
+                sign_fn=sign,
+            )
+            self._buffer = EventBuffer(
+                send_events=self.send_events,
+            )
+            self._cache.start()
+            self._buffer.start()
+
+    def shutdown(self) -> None:
+        """Graceful shutdown — flush buffer and stop timers."""
+        if self._cache:
+            self._cache.stop()
+        if self._buffer:
+            self._buffer.shutdown()
 
     def send_events(self, events: List[Dict[str, Any]]) -> Dict[str, Any]:
         """Send a batch of events to the API.

@@ -4,6 +4,10 @@ const crypto = require('crypto');
 const https = require('https');
 const http = require('http');
 const { URL } = require('url');
+const defaults = require('./defaults');
+const { matchBot, matchReferrer, createMiddleware } = require('./detector');
+const { ListCache } = require('./cache');
+const { EventBuffer } = require('./buffer');
 
 // -----------------------------------------------------------------
 // HMAC signing — format: "{timestamp}\n{method}\n{path}\n{body}"
@@ -51,6 +55,15 @@ class AilabsTracker {
    * @param {string} [config.apiUrl]   - API base URL.
    * @param {number} [config.timeout]  - HTTP timeout in ms (default 5000).
    */
+  /**
+   * @param {Object} config
+   * @param {string} config.apiKey     - API key for X-API-Key header.
+   * @param {string} config.apiSecret  - HMAC signing secret.
+   * @param {string} config.clientId   - Client identifier.
+   * @param {string} [config.apiUrl]   - API base URL.
+   * @param {number} [config.timeout]  - HTTP timeout in ms (default 5000).
+   * @param {boolean} [config.enableDetection] - Enable bot/referrer detection (default false).
+   */
   constructor(config) {
     if (config.apiUrl && !config.apiUrl.startsWith('https://')) {
       throw new Error('AilabsTracker: apiUrl must use HTTPS');
@@ -61,6 +74,33 @@ class AilabsTracker {
     this.apiUrl = config.apiUrl || 'https://YOUR_API_DOMAIN/api/v1';
     this.timeout = config.timeout || 5000;
     this.version = '1.0.0';
+
+    this._defaults = defaults;
+    this._cache = null;
+    this._buffer = null;
+
+    if (config.enableDetection) {
+      this._cache = new ListCache({
+        apiUrl: this.apiUrl,
+        apiKey: this.apiKey,
+        apiSecret: this.apiSecret,
+        sign,
+      });
+      this._buffer = new EventBuffer({
+        sendEvents: (events) => this.sendEvents(events),
+      });
+      this._cache.start();
+      this._buffer.start();
+    }
+  }
+
+  /**
+   * Graceful shutdown — flush buffer and stop timers.
+   * @returns {Promise<void>}
+   */
+  async shutdown() {
+    if (this._cache) this._cache.stop();
+    if (this._buffer) await this._buffer.shutdown();
   }
 
   /**
@@ -160,4 +200,13 @@ class AilabsTracker {
   }
 }
 
-module.exports = { AilabsTracker, sign, signatureHeader };
+module.exports = {
+  AilabsTracker,
+  sign,
+  signatureHeader,
+  matchBot,
+  matchReferrer,
+  createMiddleware,
+  ListCache,
+  EventBuffer,
+};

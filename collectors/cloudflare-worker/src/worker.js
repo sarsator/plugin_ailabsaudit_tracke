@@ -15,6 +15,9 @@
  *   API_URL     — API base URL (must be set in wrangler.toml or env)
  */
 
+import { BOT_SIGNATURES, AI_REFERRERS } from './defaults.js';
+import { getBotSignatures, getAiReferrers } from './cache.js';
+
 const encoder = new TextEncoder();
 
 // -----------------------------------------------------------------
@@ -74,29 +77,14 @@ async function signatureHeader(timestamp, method, path, body, secret) {
 // Event detection
 // -----------------------------------------------------------------
 
-const DEFAULT_BOT_SIGNATURES = [
-  'GPTBot', 'ChatGPT-User', 'OAI-SearchBot', 'Operator',
-  'ClaudeBot', 'Claude-Web', 'Claude-SearchBot', 'anthropic-ai',
-  'Google-Extended', 'GoogleOther', 'PerplexityBot',
-  'meta-externalagent', 'FacebookBot', 'facebookexternalhit',
-  'bingbot', 'CopilotBot', 'Applebot', 'Applebot-Extended',
-  'Bytespider', 'ByteDance', 'Amazonbot', 'CCBot', 'Diffbot',
-  'cohere-ai', 'YouBot', 'DeepSeekBot', 'Mistral',
-];
-
-const DEFAULT_AI_REFERRERS = [
-  'chatgpt.com', 'chat.openai.com', 'perplexity.ai', 'claude.ai',
-  'gemini.google.com', 'copilot.microsoft.com', 'poe.com', 'you.com',
-  'phind.com', 'deepseek.com', 'chat.deepseek.com', 'meta.ai',
-  'chat.mistral.ai', 'kagi.com', 'brave.com', 'character.ai',
-];
-
 /**
  * Detect bot crawl or AI referral from the request.
  * @param {Request} request
+ * @param {string[]} botSignatures
+ * @param {string[]} aiReferrers
  * @returns {{type: string, data: Object}|null}
  */
-function detectEvent(request) {
+function detectEvent(request, botSignatures, aiReferrers) {
   const ua = request.headers.get('user-agent') || '';
   const url = new URL(request.url);
   const pageUrl = url.pathname + url.search;
@@ -104,7 +92,7 @@ function detectEvent(request) {
   // Check for AI bot
   if (ua) {
     const uaLower = ua.toLowerCase();
-    for (const sig of DEFAULT_BOT_SIGNATURES) {
+    for (const sig of botSignatures) {
       if (uaLower.includes(sig.toLowerCase())) {
         return {
           type: 'bot_crawl',
@@ -124,7 +112,7 @@ function detectEvent(request) {
     try {
       const refUrl = new URL(referer);
       const host = refUrl.hostname.toLowerCase();
-      for (const domain of DEFAULT_AI_REFERRERS) {
+      for (const domain of aiReferrers) {
         if (host === domain || host.endsWith('.' + domain)) {
           return {
             type: 'ai_referral',
@@ -204,7 +192,13 @@ export default {
       env.CLIENT_ID;
 
     if (shouldTrack) {
-      const event = detectEvent(request);
+      // Fetch dynamic lists from API (cached via CF Cache API).
+      const [botSigs, aiRefs] = await Promise.all([
+        getBotSignatures(env, sign),
+        getAiReferrers(env, sign),
+      ]);
+
+      const event = detectEvent(request, botSigs, aiRefs);
       if (event) {
         ctx.waitUntil(
           sendEvents([event], env).catch((err) => {
@@ -219,5 +213,5 @@ export default {
   },
 };
 
-// Export signing functions for testing
-export { sign, signatureHeader };
+// Export for testing
+export { sign, signatureHeader, detectEvent, BOT_SIGNATURES, AI_REFERRERS };

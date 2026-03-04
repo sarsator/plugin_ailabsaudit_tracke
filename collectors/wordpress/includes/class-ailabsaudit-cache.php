@@ -228,41 +228,76 @@ class Ailabsaudit_Cache {
 			'GPTBot',            // OpenAI.
 			'ChatGPT-User',     // OpenAI.
 			'OAI-SearchBot',    // OpenAI.
-			'Operator',         // OpenAI.
+			'ChatGPT-Browser',  // OpenAI browsing mode.
+			'Operator',         // OpenAI agent.
 			'ClaudeBot',        // Anthropic.
 			'Claude-Web',       // Anthropic.
 			'Claude-SearchBot', // Anthropic.
+			'Claude-User',      // Anthropic real-time fetch.
+			'Anthropic-Claude', // Anthropic (alternate UA).
 			'anthropic-ai',     // Anthropic.
-			'Google-Extended',       // Google.
-			'GoogleOther',           // Google.
-			'GoogleOther-Image',     // Google.
-			'GoogleOther-Video',     // Google.
-			'Google-CloudVertexBot', // Google.
-			'Googlebot',             // Google.
-			'PerplexityBot',         // Perplexity.
+			'Google-Extended',        // Google.
+			'GoogleOther',            // Google.
+			'GoogleOther-Image',      // Google.
+			'GoogleOther-Video',      // Google.
+			'Google-CloudVertexBot',  // Google.
+			'GoogleAgent-Mariner',    // Google Project Mariner.
+			'Gemini-Deep-Research',   // Google Gemini Deep Research.
+			'Google-NotebookLM',      // Google NotebookLM.
+			'Googlebot',              // Google.
+			'PerplexityBot',    // Perplexity.
+			'Perplexity-User',  // Perplexity real-time fetch.
 			'meta-externalagent',    // Meta.
 			'meta-externalfetcher',  // Meta.
+			'Meta-WebIndexer',       // Meta web indexer.
 			'FacebookBot',           // Meta.
 			'facebookexternalhit',   // Meta.
-			'bingbot',          // Microsoft.
-			'CopilotBot',       // Microsoft.
-			'MicrosoftPreview', // Microsoft.
+			'bingbot',            // Microsoft.
+			'CopilotBot',         // Microsoft.
+			'MicrosoftPreview',   // Microsoft.
+			'AzureAI-SearchBot',  // Microsoft Azure AI.
 			'Applebot',          // Apple.
 			'Applebot-Extended', // Apple.
-			'Bytespider', // ByteDance.
-			'ByteDance',  // ByteDance.
-			'Amazonbot',     // Amazon.
-			'DuckAssistBot', // DuckDuckGo.
+			'Bytespider',    // ByteDance.
+			'ByteDance',     // ByteDance.
+			'TikTokSpider',  // ByteDance TikTok.
+			'GrokBot',         // xAI Grok.
+			'xAI-Grok',       // xAI Grok (alternate UA).
+			'Grok-DeepSearch', // xAI Grok Deep Search.
+			'Amazonbot',       // Amazon.
+			'Amzn-SearchBot',  // Amazon AI search.
+			'Amzn-User',       // Amazon AI assistant.
+			'NovaAct',         // Amazon Nova agent.
+			'DuckAssistBot',   // DuckDuckGo.
 			'CCBot',         // Common Crawl.
 			'Diffbot',       // Diffbot.
 			'Seekr',         // Seekr.
-			'cohere-ai',     // Cohere.
-			'YouBot',        // You.com.
-			'PetalBot',      // Aspiegel.
-			'Timpibot',      // Timpi.
-			'ImagesiftBot',  // Imagesift.
+			'Spider',        // Spider.cloud AI scraper.
+			'cohere-ai',                  // Cohere.
+			'cohere-training-data-crawler', // Cohere training data.
+			'YouBot',         // You.com.
+			'MistralAI-User', // Mistral Le Chat real-time fetch.
+			'PetalBot',       // Aspiegel.
+			'PanguBot',       // Huawei Pangu.
+			'ChatGLM-Spider', // Zhipu AI (GLM).
+			'Timpibot',       // Timpi.
+			'ImagesiftBot',   // Imagesift.
+			'AI2Bot',         // Allen Institute for AI.
+			'Ai2Bot-Dolma',   // Allen Institute Dolma dataset.
+			'Andibot',        // Andi Search.
+			'Bravebot',       // Brave search.
+			'PhindBot',       // Phind AI search.
+			'LinerBot',       // Liner AI search.
+			'TavilyBot',      // Tavily AI search.
+			'Kangaroo Bot',   // Kangaroo LLM (Australia).
+			'LinkedInBot',    // LinkedIn previews.
+			'Manus-User',     // Manus AI agent.
+			'kagi-fetcher',   // Kagi search fetcher.
+			'Cloudflare-AutoRAG', // Cloudflare AutoRAG.
+			'VelenPublicWebCrawler', // Velen AI scraper.
 			'omgili',      // Omgili.
-			'Webzio',      // Webz.io.
+			'Webzio',          // Webz.io.
+			'webzio-extended', // Webz.io extended.
 			'Nicecrawler', // Nicecrawler.
 			'ICC-Crawler', // ICC.
 			'Scrapy',          // Scrapy.
@@ -293,10 +328,14 @@ class Ailabsaudit_Cache {
 			'chatgpt.com',
 			'chat.openai.com',
 			'perplexity.ai',
+			'labs.perplexity.ai',
 			'claude.ai',
 			'gemini.google.com',
 			'labs.google',
+			'aistudio.google.com',
+			'notebooklm.google.com',
 			'copilot.microsoft.com',
+			'copilot.cloud.microsoft',
 			'poe.com',
 			'you.com',
 			'phind.com',
@@ -309,7 +348,13 @@ class Ailabsaudit_Cache {
 			'andi.com',
 			'iask.ai',
 			'brave.com',
+			'search.brave.com',
 			'character.ai',
+			'huggingface.co',
+			'huggingchat.co',
+			'grok.com',
+			'getliner.com',
+			'liner.com',
 		);
 	}
 }

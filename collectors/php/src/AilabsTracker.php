@@ -36,28 +36,63 @@ class AilabsTracker
     /** @var string */
     private string $version = '1.0.0';
 
+    private bool $enableDetection;
+
+    private ?Cache $cache = null;
+
+    private ?Buffer $buffer = null;
+
     /** Override with your API domain. */
     private const DEFAULT_API_URL = 'https://YOUR_API_DOMAIN/api/v1';
 
     /**
-     * @param string $apiKey    API key for X-API-Key header.
-     * @param string $apiSecret HMAC secret key.
-     * @param string $clientId  Client identifier.
-     * @param string $apiUrl    API base URL.
-     * @param int    $timeout   HTTP timeout in seconds.
+     * @param string $apiKey           API key for X-API-Key header.
+     * @param string $apiSecret        HMAC secret key.
+     * @param string $clientId         Client identifier.
+     * @param string $apiUrl           API base URL.
+     * @param int    $timeout          HTTP timeout in seconds.
+     * @param bool   $enableDetection  Enable bot/referrer detection (default false).
+     * @param string $bufferStorage    Path to buffer JSON file (required when detection enabled).
      */
     public function __construct(
         string $apiKey,
         string $apiSecret,
         string $clientId,
         string $apiUrl = self::DEFAULT_API_URL,
-        int $timeout = 5
+        int $timeout = 5,
+        bool $enableDetection = false,
+        string $bufferStorage = ''
     ) {
         $this->apiKey    = $apiKey;
         $this->apiSecret = $apiSecret;
         $this->clientId  = $clientId;
         $this->apiUrl    = rtrim($apiUrl, '/');
         $this->timeout   = $timeout;
+        $this->enableDetection = $enableDetection;
+
+        if ($enableDetection) {
+            $this->cache = new Cache($this->apiUrl, $this->apiKey, $this->apiSecret);
+            $storagePath = $bufferStorage !== '' ? $bufferStorage : sys_get_temp_dir() . '/ailabs_buffer.json';
+            $this->buffer = new Buffer($storagePath, [$this, 'sendEvents']);
+        }
+    }
+
+    /**
+     * Detect an event from the current request and buffer it.
+     */
+    public function detect(): void
+    {
+        if (!$this->enableDetection || $this->cache === null || $this->buffer === null) {
+            return;
+        }
+
+        $botSignatures = $this->cache->getBotSignatures();
+        $aiReferrers   = $this->cache->getAiReferrers();
+
+        $event = Detector::detect($botSignatures, $aiReferrers);
+        if ($event !== null) {
+            $this->buffer->add($event);
+        }
     }
 
     // -----------------------------------------------------------------
