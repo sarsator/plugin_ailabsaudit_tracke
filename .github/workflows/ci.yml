@@ -42,8 +42,7 @@ jobs:
 
       - name: PHPCS (WordPress standard)
         run: |
-          phpcs --standard=WordPress \
-            --extensions=php \
+          phpcs --standard=collectors/wordpress/phpcs.xml.dist \
             --ignore=tests/ \
             collectors/wordpress/
 

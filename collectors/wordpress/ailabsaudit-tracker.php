@@ -34,8 +34,6 @@ if ( is_admin() ) {
 	require_once AILABSAUDIT_PLUGIN_DIR . 'admin/class-ailabsaudit-settings.php';
 }
 
-// phpcs:ignore WordPress.Files.FileName.InvalidClassFileName -- Main plugin file.
-
 /**
  * Main plugin class — singleton.
  *
@@ -102,7 +100,6 @@ final class Ailabsaudit_Tracker {
 		);
 
 		if ( ! wp_next_scheduled( 'ailabsaudit_flush_buffer' ) ) {
-			// phpcs:ignore WordPress.WP.CronInterval.CronSchedulesInterval -- 5-min flush is by design.
 			wp_schedule_event(
 				time(),
 				'ailabsaudit_five_minutes',
@@ -150,7 +147,6 @@ final class Ailabsaudit_Tracker {
 		);
 
 		if ( ! wp_next_scheduled( 'ailabsaudit_flush_buffer' ) ) {
-			// phpcs:ignore WordPress.WP.CronInterval.CronSchedulesInterval -- 5-min flush is by design.
 			wp_schedule_event(
 				time(),
 				'ailabsaudit_five_minutes',

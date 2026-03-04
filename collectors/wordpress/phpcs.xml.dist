@@ -1,0 +1,13 @@
+<?xml version="1.0"?>
+<ruleset name="Ailabsaudit Tracker">
+	<description>PHPCS configuration for AI Labs Audit Tracker.</description>
+
+	<rule ref="WordPress">
+		<!-- Main plugin file cannot be renamed to class-*.php. -->
+		<exclude name="WordPress.Files.FileName.InvalidClassFileName"/>
+		<!-- 5-minute cron flush is intentional by design. -->
+		<exclude name="WordPress.WP.CronInterval.CronSchedulesInterval"/>
+	</rule>
+
+	<arg name="extensions" value="php"/>
+</ruleset>
