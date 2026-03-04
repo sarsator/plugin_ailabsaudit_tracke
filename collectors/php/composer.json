@@ -1,0 +1,19 @@
+{
+    "name": "ailabsaudit/tracker",
+    "description": "Generic PHP collector for AI Labs Audit — HMAC-SHA256 signed event tracking.",
+    "type": "library",
+    "license": "MIT",
+    "require": {
+        "php": ">=7.4",
+        "ext-curl": "*",
+        "ext-json": "*"
+    },
+    "autoload": {
+        "psr-4": {
+            "AilabsAudit\\Tracker\\": "src/"
+        }
+    },
+    "scripts": {
+        "test": "php tests/HmacTest.php"
+    }
+}

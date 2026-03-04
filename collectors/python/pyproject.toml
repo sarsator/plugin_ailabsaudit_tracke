@@ -1,0 +1,34 @@
+[build-system]
+requires = ["setuptools>=64", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ailabsaudit-tracker"
+version = "1.0.0"
+description = "Zero-dependency Python collector for AI Labs Audit — HMAC-SHA256 signed event tracking."
+readme = "README.md"
+license = {text = "MIT"}
+requires-python = ">=3.8"
+authors = [
+    {name = "AI Labs Solutions", email = "support@ailabssolutions.com"},
+]
+keywords = ["ai", "tracker", "analytics", "audit", "hmac"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+]
+dependencies = []
+
+[project.urls]
+Homepage = "https://github.com/ailabssolutions/ailabsaudit-tracker"
+
+[tool.setuptools.packages.find]
+where = ["src"]

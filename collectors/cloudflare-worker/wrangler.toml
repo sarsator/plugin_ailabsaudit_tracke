@@ -1,0 +1,11 @@
+name = "ailabsaudit-tracker"
+main = "src/worker.js"
+compatibility_date = "2026-03-01"
+compatibility_flags = ["nodejs_compat"]
+
+[vars]
+API_URL = "https://api.ailabsaudit.com/v1/collect"
+
+# Set these as secrets via: wrangler secret put TRACKER_ID / API_SECRET
+# TRACKER_ID = ""
+# API_SECRET = ""

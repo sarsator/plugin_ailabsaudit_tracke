@@ -1,0 +1,16 @@
+{
+  "name": "@ailabsaudit/tracker-node",
+  "version": "1.0.0",
+  "description": "Node.js collector for AI Labs Audit — HMAC-SHA256 signed event tracking.",
+  "main": "src/index.js",
+  "exports": {
+    ".": "./src/index.js"
+  },
+  "scripts": {
+    "test": "node tests/hmac.test.js"
+  },
+  "license": "MIT",
+  "engines": {
+    "node": ">=14.0.0"
+  }
+}

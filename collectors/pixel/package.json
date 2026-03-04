@@ -1,0 +1,10 @@
+{
+  "name": "@ailabsaudit/tracker-pixel",
+  "version": "1.0.0",
+  "description": "Lightweight JavaScript pixel tag for AI Labs Audit — client-side page view and event tracking.",
+  "main": "src/tracker.js",
+  "scripts": {
+    "test": "node tests/tracker.test.js"
+  },
+  "license": "MIT"
+}

@@ -1,0 +1,55 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  node-tests:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        node-version: [18, 20, 22]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+      - name: Node.js collector
+        run: node collectors/node/tests/hmac.test.js
+      - name: Cloudflare Worker collector
+        run: node collectors/cloudflare-worker/tests/hmac.test.js
+      - name: Pixel tag
+        run: node collectors/pixel/tests/tracker.test.js
+      - name: Cross-collector validation (JS)
+        run: node integration-tests/validate-vectors.js
+
+  python-tests:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ['3.8', '3.10', '3.12']
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Python collector
+        run: python collectors/python/tests/test_hmac.py -v
+      - name: Cross-collector validation (Python)
+        run: python integration-tests/validate-vectors.py
+
+  php-tests:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        php-version: ['7.4', '8.1', '8.3']
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php-version }}
+      - name: PHP collector
+        run: php collectors/php/tests/HmacTest.php
