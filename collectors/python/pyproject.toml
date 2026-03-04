@@ -10,7 +10,7 @@ readme = "README.md"
 license = {text = "MIT"}
 requires-python = ">=3.8"
 authors = [
-    {name = "AI Labs Solutions", email = "support@ailabssolutions.com"},
+    {name = "AI Labs Audit"},
 ]
 keywords = ["ai", "tracker", "analytics", "audit", "hmac"]
 classifiers = [
@@ -28,7 +28,7 @@ classifiers = [
 dependencies = []
 
 [project.urls]
-Homepage = "https://github.com/ailabssolutions/ailabsaudit-tracker"
+Homepage = "https://github.com/sarsator/plugin_ailabsaudit_tracke"
 
 [tool.setuptools.packages.find]
 where = ["src"]

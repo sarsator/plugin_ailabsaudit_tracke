@@ -37,7 +37,7 @@ jobs:
             dealerdirect/phpcodesniffer-composer-installer
 
       - name: HMAC tests
-        run: phpunit collectors/wordpress/tests/test-signer.php
+        run: php collectors/wordpress/tests/test-hmac.php
 
       - name: PHPCS (WordPress standard)
         run: |

@@ -32,7 +32,7 @@ FAILED=0
 for i in $(seq 0 $((COUNT - 1))); do
   # Extract vector fields via python (portable JSON parsing)
   NAME=$(python3 -c "import json; v=json.load(open('$VECTORS_FILE'))['vectors'][$i]; print(v['name'])")
-  CANONICAL=$(python3 -c "import json; v=json.load(open('$VECTORS_FILE'))['vectors'][$i]; print(v['canonical'])")
+  CANONICAL=$(python3 -c "import json; v=json.load(open('$VECTORS_FILE'))['vectors'][$i]; print(v['string_to_sign'])")
   EXPECTED_SIG=$(python3 -c "import json; v=json.load(open('$VECTORS_FILE'))['vectors'][$i]; print(v['signature'])")
 
   # Compute HMAC-SHA256 using openssl as reference
