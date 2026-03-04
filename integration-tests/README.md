@@ -1,6 +1,6 @@
 # Integration Tests
 
-Cross-collector validation to ensure all collectors produce identical HMAC-SHA256 signatures for the same payloads.
+Cross-collector validation to ensure all collectors produce identical HMAC-SHA256 signatures for the same inputs.
 
 ## Run all tests
 
@@ -20,7 +20,7 @@ python3 integration-tests/validate-vectors.py
 
 ## What gets tested
 
-- Each collector's `canonicalize()` output matches `spec/test-vectors.json`
-- Each collector's `sign()` output matches the expected HMAC signatures
-- Cross-collector consistency: Node.js and CF Worker produce identical canonical JSON
-- All 3 test vectors: minimal_page_view, full_page_view, cta_click_event
+- Each collector's `sign(timestamp, method, path, body, secret)` output matches `spec/test-vectors.json`
+- Cross-collector consistency: all collectors produce identical signatures for the same inputs
+- All 5 test vectors: batch_events_empty, batch_events_one_bot, verify_connection, get_bot_signatures, get_ai_referrers
+- Signing format: `"{timestamp}\n{method}\n{path}\n{body}"` — no canonicalization, raw hex output

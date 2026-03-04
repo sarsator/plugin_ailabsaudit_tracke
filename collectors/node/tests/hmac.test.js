@@ -1,7 +1,11 @@
 'use strict';
 
 /**
- * HMAC Test — validates canonicalize + sign against spec/test-vectors.json.
+ * HMAC Test — validates sign against spec/test-vectors.json.
+ *
+ * New format: "{timestamp}\n{method}\n{path}\n{body}"
+ * Signature is raw hex (no sha256= prefix).
+ * No canonicalization — body is signed as-is.
  *
  * Run:  node tests/hmac.test.js
  * Exit: 0 = all pass, 1 = failure.
@@ -9,7 +13,7 @@
 
 const fs = require('fs');
 const path = require('path');
-const { canonicalize, sign, signatureHeader } = require('../src/index');
+const { sign, signatureHeader } = require('../src/index');
 
 const vectorsPath = path.resolve(__dirname, '..', '..', '..', 'spec', 'test-vectors.json');
 const data = JSON.parse(fs.readFileSync(vectorsPath, 'utf8'));
@@ -21,20 +25,16 @@ let passed = 0;
 let failed = 0;
 
 for (const v of vectors) {
-  const canonical = canonicalize(v.payload);
-  const sig = sign(canonical, secret);
-  const header = signatureHeader(canonical, secret);
+  const sig = sign(v.timestamp, v.method, v.path, v.body, secret);
+  const header = signatureHeader(v.timestamp, v.method, v.path, v.body, secret);
 
   const errors = [];
 
-  if (canonical !== v.canonical) {
-    errors.push(`  canonical mismatch\n    expected: ${v.canonical}\n    actual:   ${canonical}`);
-  }
   if (sig !== v.signature) {
     errors.push(`  signature mismatch\n    expected: ${v.signature}\n    actual:   ${sig}`);
   }
-  if (header !== v.header) {
-    errors.push(`  header mismatch\n    expected: ${v.header}\n    actual:   ${header}`);
+  if (header !== v.signature) {
+    errors.push(`  header mismatch\n    expected: ${v.signature}\n    actual:   ${header}`);
   }
 
   if (errors.length > 0) {

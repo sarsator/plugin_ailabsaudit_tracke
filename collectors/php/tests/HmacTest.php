@@ -1,7 +1,11 @@
 <?php
 
 /**
- * HMAC Test — validates canonicalize + sign against spec/test-vectors.json.
+ * HMAC Test — validates sign against spec/test-vectors.json.
+ *
+ * New format: "{timestamp}\n{method}\n{path}\n{body}"
+ * Signature is raw hex (no sha256= prefix).
+ * No canonicalization — body is signed as-is.
  *
  * Run:  php tests/HmacTest.php
  * Exit: 0 = all pass, 1 = failure.
@@ -29,18 +33,8 @@ $failed = 0;
 
 foreach ($vectors as $v) {
     $name      = $v['name'];
-    $canonical = AilabsTracker::canonicalize($v['payload']);
-    $signature = AilabsTracker::sign($canonical, $secret);
-    $header    = AilabsTracker::signatureHeader($canonical, $secret);
-
-    // Check canonical form.
-    if ($canonical !== $v['canonical']) {
-        $failed++;
-        echo "  FAIL [{$name}] canonical mismatch\n";
-        echo "    expected: {$v['canonical']}\n";
-        echo "    actual:   {$canonical}\n";
-        continue;
-    }
+    $signature = AilabsTracker::sign($v['timestamp'], $v['method'], $v['path'], $v['body'], $secret);
+    $header    = AilabsTracker::signatureHeader($v['timestamp'], $v['method'], $v['path'], $v['body'], $secret);
 
     // Check signature.
     if ($signature !== $v['signature']) {
@@ -51,11 +45,11 @@ foreach ($vectors as $v) {
         continue;
     }
 
-    // Check header format.
-    if ($header !== $v['header']) {
+    // Check header format (raw hex, no sha256= prefix).
+    if ($header !== $v['signature']) {
         $failed++;
         echo "  FAIL [{$name}] header mismatch\n";
-        echo "    expected: {$v['header']}\n";
+        echo "    expected: {$v['signature']}\n";
         echo "    actual:   {$header}\n";
         continue;
     }

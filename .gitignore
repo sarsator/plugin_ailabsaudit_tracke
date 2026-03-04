@@ -37,3 +37,10 @@ htmlcov/
 
 # WordPress
 wp-config.php
+
+# Claude Code (internal files, SSH helpers, session logs)
+.claude/
+CLAUDE.md
+
+# Cloudflare Worker secrets (if local overrides exist)
+wrangler.local.toml

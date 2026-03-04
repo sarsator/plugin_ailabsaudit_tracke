@@ -7,11 +7,10 @@ to the AI Labs Audit ingestion API.
 
 __version__ = "1.0.0"
 
-from .tracker import AilabsTracker, canonicalize, sign, signature_header  # noqa: F401
+from .tracker import AilabsTracker, sign, signature_header  # noqa: F401
 
 __all__ = [
     "AilabsTracker",
-    "canonicalize",
     "sign",
     "signature_header",
 ]

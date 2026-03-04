@@ -3,9 +3,12 @@
 /**
  * Cross-collector HMAC validation script.
  *
- * Validates that the canonicalize + sign logic produces identical
- * output across Node.js and Cloudflare Worker collectors, and
- * matches the spec test vectors exactly.
+ * Validates that the sign logic produces identical output across
+ * Node.js and Cloudflare Worker collectors, and matches the spec
+ * test vectors exactly.
+ *
+ * New format: "{timestamp}\n{method}\n{path}\n{body}"
+ * Signature is raw hex (no sha256= prefix). No canonicalization.
  *
  * Run: node integration-tests/validate-vectors.js
  */
@@ -20,22 +23,16 @@ const data = JSON.parse(fs.readFileSync(vectorsPath, 'utf8'));
 const secret = data.secret;
 
 // -----------------------------------------------------------------
-// Import canonicalize from Node collector
+// Import sign from Node collector
 // -----------------------------------------------------------------
 const nodeCollector = require('../collectors/node/src/index.js');
 
 // -----------------------------------------------------------------
-// Replicate Cloudflare Worker canonicalize (pure JS, same logic)
+// Replicate Cloudflare Worker sign (pure JS, same logic)
 // -----------------------------------------------------------------
-function cfSortRecursive(d) {
-  if (d === null || typeof d !== 'object') return d;
-  if (Array.isArray(d)) return d.map(cfSortRecursive);
-  const s = {};
-  for (const k of Object.keys(d).sort()) s[k] = cfSortRecursive(d[k]);
-  return s;
-}
-function cfCanonicalize(payload) {
-  return JSON.stringify(cfSortRecursive(payload));
+function cfSign(timestamp, method, pathStr, body, secret) {
+  const stringToSign = `${timestamp}\n${method}\n${pathStr}\n${body}`;
+  return crypto.createHmac('sha256', secret).update(stringToSign, 'utf8').digest('hex');
 }
 
 // -----------------------------------------------------------------
@@ -46,21 +43,16 @@ let passed = 0;
 let failed = 0;
 
 for (const v of data.vectors) {
-  const nodeCanonical = nodeCollector.canonicalize(v.payload);
-  const cfCanonical = cfCanonicalize(v.payload);
-  const nodeSig = nodeCollector.sign(nodeCanonical, secret);
-
+  const nodeSig = nodeCollector.sign(v.timestamp, v.method, v.path, v.body, secret);
+  const cfSig = cfSign(v.timestamp, v.method, v.path, v.body, secret);
   const errors = [];
 
   // Cross-collector consistency
-  if (nodeCanonical !== cfCanonical) {
-    errors.push(`  Node vs CF Worker canonical mismatch`);
+  if (nodeSig !== cfSig) {
+    errors.push(`  Node vs CF Worker signature mismatch\n    node: ${nodeSig}\n    cf:   ${cfSig}`);
   }
 
   // Spec compliance
-  if (nodeCanonical !== v.canonical) {
-    errors.push(`  canonical != spec\n    expected: ${v.canonical}\n    actual:   ${nodeCanonical}`);
-  }
   if (nodeSig !== v.signature) {
     errors.push(`  signature != spec\n    expected: ${v.signature}\n    actual:   ${nodeSig}`);
   }

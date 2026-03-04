@@ -4,7 +4,8 @@ compatibility_date = "2026-03-01"
 compatibility_flags = ["nodejs_compat"]
 
 [vars]
-API_URL = "https://api.ailabsaudit.com/v1/collect"
+# Replace with your API domain before deploying.
+API_URL = "https://YOUR_API_DOMAIN/api/v1"
 
 # Set these as secrets via: wrangler secret put TRACKER_ID / API_SECRET
 # TRACKER_ID = ""

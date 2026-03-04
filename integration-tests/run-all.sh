@@ -92,19 +92,25 @@ else
 fi
 
 # -----------------------------------------------------------------
-# WordPress collector (PHPUnit)
+# WordPress collector HMAC signing
+# Format: "{timestamp}\n{method}\n{path}\n{body}" — raw hex, no sha256= prefix.
+# Uses spec/test-vectors.json vector "batch_events_empty":
+#   timestamp=1709553600, method=POST, path=/api/v1/tracking/events
+#   expected=b353b0bc51830f6d938eec9190c762b5e16bc766572662d492bf2cda4953166e
 # -----------------------------------------------------------------
 if command -v php &>/dev/null; then
   run_test "WordPress Signer" "php -r \"
     define('ABSPATH', '/tmp/');
+    define('AILABSAUDIT_VERSION', '1.0.0');
     function wp_json_encode(\\\$d, \\\$o=0, \\\$dp=512) { return json_encode(\\\$d, \\\$o, \\\$dp); }
-    require '$ROOT/collectors/wordpress/includes/class-ailabsaudit-signer.php';
-    \\\$s = new AiLabsAudit_Signer();
-    \\\$secret = 'whsec_test_secret_key_for_ailabsaudit_tracker';
-    \\\$p = ['url'=>'https://example.com','event'=>'page_view','tracker_id'=>'TRK-001','timestamp'=>'2026-03-04T12:00:00Z'];
-    \\\$c = \\\$s->canonicalize(\\\$p);
-    \\\$sig = \\\$s->sign(\\\$c, \\\$secret);
-    if (\\\$sig !== '38a1f33bab70b46143c0a9528640be0fee83a9ddcbb94395018460f6b81394ce') { echo 'FAIL'; exit(1); }
+    require '$ROOT/collectors/wordpress/includes/class-ailabsaudit-sender.php';
+    \\\$secret    = 'whsec_test_secret_key_for_ailabsaudit_tracker';
+    \\\$timestamp = '1709553600';
+    \\\$method    = 'POST';
+    \\\$path      = '/api/v1/tracking/events';
+    \\\$body      = '{\\\"client_id\\\":\\\"CLT-001\\\",\\\"plugin_type\\\":\\\"wordpress\\\",\\\"plugin_version\\\":\\\"1.0.0\\\",\\\"batch_id\\\":\\\"550e8400-e29b-41d4-a716-446655440000\\\",\\\"events\\\":[]}';
+    \\\$sig = Ailabsaudit_Sender::sign(\\\$timestamp, \\\$method, \\\$path, \\\$body, \\\$secret);
+    if (\\\$sig !== 'b353b0bc51830f6d938eec9190c762b5e16bc766572662d492bf2cda4953166e') { echo 'FAIL: got ' . \\\$sig; exit(1); }
     echo '  PASS: wordpress signer';
   \""
 else

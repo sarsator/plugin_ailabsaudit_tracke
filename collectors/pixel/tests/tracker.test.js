@@ -7,6 +7,8 @@
  *
  * NOTE: The pixel tag runs in the browser and uses sendBeacon.
  * These tests validate the payload building logic only.
+ * The pixel sends unsigned payloads (no HMAC) — signing happens
+ * server-side. No canonicalization, no sha256= prefix.
  */
 
 const fs = require('fs');
@@ -47,7 +49,7 @@ function buildPayload(event, url, meta) {
   return payload;
 }
 
-// Test 1: minimal payload matches vector structure
+// Test 1: minimal payload matches expected structure
 const p1 = buildPayload('page_view', 'https://example.com');
 assert(p1.event === 'page_view', 'minimal payload has event=page_view');
 assert(p1.tracker_id === 'TRK-001', 'minimal payload has tracker_id');
@@ -70,13 +72,32 @@ for (const field of requiredFields) {
   assert(field in p1, `required field "${field}" present in payload`);
 }
 
-// Test 4: verify test vectors have valid structure
+// Test 4: verify test vectors have valid structure (new format)
 for (const v of data.vectors) {
   assert(
-    v.payload.event && v.payload.timestamp && v.payload.tracker_id && v.payload.url,
-    `vector "${v.name}" has all required fields`,
+    typeof v.timestamp === 'string' && v.timestamp.length > 0,
+    `vector "${v.name}" has timestamp`,
   );
-  assert(v.canonical && v.signature && v.header, `vector "${v.name}" has canonical + signature + header`);
+  assert(
+    typeof v.method === 'string' && v.method.length > 0,
+    `vector "${v.name}" has method`,
+  );
+  assert(
+    typeof v.path === 'string' && v.path.length > 0,
+    `vector "${v.name}" has path`,
+  );
+  assert(
+    typeof v.body === 'string',
+    `vector "${v.name}" has body (may be empty for GET)`,
+  );
+  assert(
+    typeof v.signature === 'string' && v.signature.length === 64,
+    `vector "${v.name}" has 64-char hex signature (no sha256= prefix)`,
+  );
+  assert(
+    typeof v.string_to_sign === 'string' && v.string_to_sign.length > 0,
+    `vector "${v.name}" has string_to_sign`,
+  );
 }
 
 // Summary

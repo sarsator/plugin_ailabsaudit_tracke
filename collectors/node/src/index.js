@@ -6,61 +6,36 @@ const http = require('http');
 const { URL } = require('url');
 
 // -----------------------------------------------------------------
-// Canonicalization & HMAC signing
+// HMAC signing — format: "{timestamp}\n{method}\n{path}\n{body}"
 // -----------------------------------------------------------------
 
 /**
- * Recursively sort object keys alphabetically.
- * Arrays are preserved as-is (not sorted).
+ * Build HMAC-SHA256 signature.
  *
- * @param {*} data
- * @returns {*}
+ * @param {string} timestamp Unix epoch seconds.
+ * @param {string} method    HTTP method (GET, POST).
+ * @param {string} path      API path (e.g. /api/v1/tracking/events).
+ * @param {string} body      JSON body (empty string for GET).
+ * @param {string} secret    HMAC secret.
+ * @returns {string} Lowercase hex signature (64 chars).
  */
-function sortRecursive(data) {
-  if (data === null || typeof data !== 'object') {
-    return data;
-  }
-  if (Array.isArray(data)) {
-    return data.map(sortRecursive);
-  }
-  const sorted = {};
-  for (const key of Object.keys(data).sort()) {
-    sorted[key] = sortRecursive(data[key]);
-  }
-  return sorted;
+function sign(timestamp, method, path, body, secret) {
+  const stringToSign = `${timestamp}\n${method}\n${path}\n${body}`;
+  return crypto.createHmac('sha256', secret).update(stringToSign, 'utf8').digest('hex');
 }
 
 /**
- * Canonicalize a payload object into a deterministic JSON string.
- * Keys sorted recursively, compact (no whitespace).
+ * Build the X-Signature header value (raw hex, no prefix).
  *
- * @param {Object} payload
+ * @param {string} timestamp
+ * @param {string} method
+ * @param {string} path
+ * @param {string} body
+ * @param {string} secret
  * @returns {string}
  */
-function canonicalize(payload) {
-  return JSON.stringify(sortRecursive(payload));
-}
-
-/**
- * Compute HMAC-SHA256 signature.
- *
- * @param {string} canonicalJson
- * @param {string} secret
- * @returns {string} Lowercase hex signature.
- */
-function sign(canonicalJson, secret) {
-  return crypto.createHmac('sha256', secret).update(canonicalJson, 'utf8').digest('hex');
-}
-
-/**
- * Build the X-Signature header value.
- *
- * @param {string} canonicalJson
- * @param {string} secret
- * @returns {string} e.g. "sha256=abcdef..."
- */
-function signatureHeader(canonicalJson, secret) {
-  return 'sha256=' + sign(canonicalJson, secret);
+function signatureHeader(timestamp, method, path, body, secret) {
+  return sign(timestamp, method, path, body, secret);
 }
 
 // -----------------------------------------------------------------
@@ -70,109 +45,102 @@ function signatureHeader(canonicalJson, secret) {
 class AilabsTracker {
   /**
    * @param {Object} config
-   * @param {string} config.trackerId  - Tracker ID (e.g. "TRK-00001").
+   * @param {string} config.apiKey     - API key for X-API-Key header.
    * @param {string} config.apiSecret  - HMAC signing secret.
-   * @param {string} [config.apiUrl]   - API endpoint URL.
+   * @param {string} config.clientId   - Client identifier.
+   * @param {string} [config.apiUrl]   - API base URL.
    * @param {number} [config.timeout]  - HTTP timeout in ms (default 5000).
-   * @param {boolean} [config.anonymizeIp] - Anonymize IP (default true).
    */
   constructor(config) {
-    this.trackerId = config.trackerId;
+    if (config.apiUrl && !config.apiUrl.startsWith('https://')) {
+      throw new Error('AilabsTracker: apiUrl must use HTTPS');
+    }
+    this.apiKey = config.apiKey;
     this.apiSecret = config.apiSecret;
-    this.apiUrl = config.apiUrl || 'https://api.ailabsaudit.com/v1/collect';
+    this.clientId = config.clientId;
+    this.apiUrl = config.apiUrl || 'https://YOUR_API_DOMAIN/api/v1';
     this.timeout = config.timeout || 5000;
-    this.anonymizeIp = config.anonymizeIp !== false;
+    this.version = '1.0.0';
   }
 
   /**
-   * Track an event.
+   * Send a batch of events to the API.
    *
-   * @param {string} event - Event type (e.g. "page_view", "cta_click").
-   * @param {string} url   - Page URL.
-   * @param {Object} [options]
-   * @param {string} [options.referrer]
-   * @param {string} [options.userAgent]
-   * @param {string} [options.ip]
-   * @param {Object} [options.meta]
+   * @param {Object[]} events - Array of event objects.
    * @returns {Promise<{success: boolean, statusCode: number, body: string}>}
    */
-  async track(event, url, options = {}) {
-    const payload = {
-      event,
-      timestamp: new Date().toISOString().replace(/\.\d{3}Z$/, 'Z'),
-      tracker_id: this.trackerId,
-      url,
-    };
-
-    if (options.referrer) payload.referrer = options.referrer;
-    if (options.userAgent) payload.user_agent = options.userAgent;
-    if (options.ip) {
-      payload.ip = this.anonymizeIp ? this._anonymizeIp(options.ip) : options.ip;
-    }
-    if (options.meta && Object.keys(options.meta).length > 0) {
-      payload.meta = options.meta;
-    }
-
-    return this._send(payload);
-  }
-
-  /**
-   * Track a page view from an Express-like request object.
-   *
-   * @param {Object} req - Express request object.
-   * @param {Object} [meta] - Optional metadata.
-   * @returns {Promise<{success: boolean, statusCode: number, body: string}>}
-   */
-  async trackPageView(req, meta = {}) {
-    const protocol = req.protocol || (req.secure ? 'https' : 'http');
-    const host = req.get ? req.get('host') : req.headers?.host || 'localhost';
-    const url = protocol + '://' + host + req.originalUrl;
-
-    return this.track('page_view', url, {
-      referrer: req.get ? req.get('referer') : req.headers?.referer,
-      userAgent: req.get ? req.get('user-agent') : req.headers?.['user-agent'],
-      ip: req.ip || req.connection?.remoteAddress,
-      meta,
+  async sendEvents(events) {
+    const payload = JSON.stringify({
+      client_id: this.clientId,
+      plugin_type: 'node',
+      plugin_version: this.version,
+      batch_id: crypto.randomUUID(),
+      events,
     });
+
+    return this._send('POST', '/api/v1/tracking/events', '/tracking/events', payload);
   }
 
   /**
-   * Send a signed payload to the API.
-   * @private
+   * Verify API connection.
+   *
+   * @returns {Promise<{success: boolean, statusCode: number, body: string}>}
    */
-  _send(payload) {
-    const canonical = canonicalize(payload);
-    const sig = signatureHeader(canonical, this.apiSecret);
-    const timestamp = payload.timestamp;
+  async verifyConnection() {
+    const payload = JSON.stringify({
+      tracking_api_key: this.apiKey,
+      client_id: this.clientId,
+      plugin_type: 'node',
+      plugin_version: this.version,
+    });
 
-    const parsed = new URL(this.apiUrl);
-    const transport = parsed.protocol === 'https:' ? https : http;
+    return this._send('POST', '/api/v1/tracking/verify', '/tracking/verify', payload);
+  }
+
+  /**
+   * Send a signed request to the API.
+   * @private
+   * @param {string} method   HTTP method.
+   * @param {string} hmacPath Path used for HMAC (includes /api/v1 prefix).
+   * @param {string} urlPath  Path appended to API URL.
+   * @param {string} body     JSON body.
+   * @returns {Promise<{success: boolean, statusCode: number, body: string}>}
+   */
+  _send(method, hmacPath, urlPath, body) {
+    const timestamp = String(Math.floor(Date.now() / 1000));
+    const nonce = crypto.randomUUID();
+    const signature = sign(timestamp, method, hmacPath, body, this.apiSecret);
+
+    const url = new URL(this.apiUrl.replace(/\/$/, '') + urlPath);
+    const transport = url.protocol === 'https:' ? https : http;
 
     const options = {
-      hostname: parsed.hostname,
-      port: parsed.port || (parsed.protocol === 'https:' ? 443 : 80),
-      path: parsed.pathname + parsed.search,
-      method: 'POST',
+      hostname: url.hostname,
+      port: url.port || (url.protocol === 'https:' ? 443 : 80),
+      path: url.pathname + url.search,
+      method,
       timeout: this.timeout,
+      rejectUnauthorized: true,
       headers: {
         'Content-Type': 'application/json',
-        'X-Tracker-Id': this.trackerId,
-        'X-Signature': sig,
+        'X-API-Key': this.apiKey,
         'X-Timestamp': timestamp,
-        'User-Agent': 'AilabsAudit-Node/1.0.0',
-        'Content-Length': Buffer.byteLength(canonical, 'utf8'),
+        'X-Nonce': nonce,
+        'X-Signature': signature,
+        'User-Agent': `AilabsauditTracker/${this.version} Node/${process.version}`,
+        'Content-Length': Buffer.byteLength(body, 'utf8'),
       },
     };
 
     return new Promise((resolve) => {
       const req = transport.request(options, (res) => {
-        let body = '';
-        res.on('data', (chunk) => { body += chunk; });
+        let responseBody = '';
+        res.on('data', (chunk) => { responseBody += chunk; });
         res.on('end', () => {
           resolve({
             success: res.statusCode >= 200 && res.statusCode < 300,
             statusCode: res.statusCode,
-            body,
+            body: responseBody,
           });
         });
       });
@@ -186,22 +154,10 @@ class AilabsTracker {
         resolve({ success: false, statusCode: 0, body: 'timeout' });
       });
 
-      req.write(canonical);
+      req.write(body);
       req.end();
     });
   }
-
-  /**
-   * Anonymize IPv4 by zeroing last octet.
-   * @private
-   */
-  _anonymizeIp(ip) {
-    // IPv4
-    if (/^\d+\.\d+\.\d+\.\d+$/.test(ip)) {
-      return ip.replace(/\.\d+$/, '.0');
-    }
-    return ip;
-  }
 }
 
-module.exports = { AilabsTracker, canonicalize, sign, signatureHeader };
+module.exports = { AilabsTracker, sign, signatureHeader };

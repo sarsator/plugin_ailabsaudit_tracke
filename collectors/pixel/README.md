@@ -6,19 +6,20 @@ Lightweight client-side tracker (<2 KB). Drop a single `<script>` tag to track p
 
 ```html
 <script
-  src="https://cdn.ailabsaudit.com/t.js"
-  data-tracker-id="TRK-00001"
+  src="/path/to/tracker.js"
+  data-tracker-id="YOUR_TRACKER_ID"
+  data-api-url="https://YOUR_API_DOMAIN/api/v1/collect"
 ></script>
 ```
 
-That's it. Page views are tracked automatically.
+Page views are tracked automatically.
 
 ## Configuration (data attributes)
 
 | Attribute | Description | Default |
 |-----------|-------------|---------|
 | `data-tracker-id` | Your tracker ID (required) | — |
-| `data-api-url` | Ingestion endpoint | `https://api.ailabsaudit.com/v1/collect` |
+| `data-api-url` | Ingestion endpoint (required) | — |
 | `data-auto-track` | Auto-track page views | `true` |
 
 ## Custom events

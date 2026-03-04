@@ -1,6 +1,6 @@
 # AI Labs Audit Tracker — Node.js Collector
 
-Zero-dependency Node.js library for sending HMAC-SHA256 signed events to the AI Labs Audit API.
+Zero-dependency Node.js library for detecting AI bot crawls and AI referral traffic. Sends HMAC-SHA256 signed event batches to the ingestion API.
 
 ## Installation
 
@@ -8,37 +8,48 @@ Zero-dependency Node.js library for sending HMAC-SHA256 signed events to the AI 
 npm install @ailabsaudit/tracker-node
 ```
 
+Or copy `src/index.js` directly into your project.
+
 ## Usage
 
 ```js
 const { AilabsTracker } = require('@ailabsaudit/tracker-node');
 
 const tracker = new AilabsTracker({
-  trackerId: 'TRK-00001',
-  apiSecret: 'your_api_secret',
+  apiKey: 'your-api-key',
+  apiSecret: 'your-hmac-secret',
+  clientId: 'your-client-id',
+  apiUrl: 'https://YOUR_API_DOMAIN/api/v1',  // must be HTTPS
 });
 
-// Track a custom event
-await tracker.track('cta_click', 'https://example.com/pricing', {
-  meta: { button_id: 'hero-signup' },
-});
+// Send a batch of events
+const result = await tracker.sendEvents([
+  {
+    type: 'bot_crawl',
+    user_agent: req.headers['user-agent'],
+    url: req.url,
+    timestamp: new Date().toISOString(),
+    status_code: 200,
+    response_size: 0,
+  },
+]);
+// result = { success: true, statusCode: 202, body: '...' }
 
-// Express middleware — auto-track page views
-app.use((req, res, next) => {
-  tracker.trackPageView(req).catch(() => {});
-  next();
-});
+// Verify API connection
+const verify = await tracker.verifyConnection();
 ```
 
-## Standalone HMAC signing
+## HMAC Signing
 
 ```js
-const { canonicalize, sign, signatureHeader } = require('@ailabsaudit/tracker-node');
+const { sign, signatureHeader } = require('@ailabsaudit/tracker-node');
 
-const canonical = canonicalize(payload);
-const sig = sign(canonical, secret);         // hex string
-const header = signatureHeader(canonical, secret); // "sha256=..."
+const timestamp = String(Math.floor(Date.now() / 1000));
+const signature = sign(timestamp, 'POST', '/api/v1/tracking/events', body, secret);
+// => "a1b2c3..." (64-char hex, no prefix)
 ```
+
+Signing format: `"{timestamp}\n{method}\n{path}\n{body}"` — no canonicalization, no key sorting.
 
 ## Tests
 
@@ -50,3 +61,4 @@ node tests/hmac.test.js
 
 - Node.js 14+
 - No external dependencies
+- API URL must use HTTPS

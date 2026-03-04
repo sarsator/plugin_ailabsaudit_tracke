@@ -3,8 +3,9 @@
 /**
  * AilabsAudit Tracker — Generic PHP Collector
  *
- * Captures page views and custom events, signs payloads with HMAC-SHA256,
- * and sends them to the AI Labs Audit ingestion API.
+ * Sends signed batch events to the AI Labs Audit ingestion API.
+ *
+ * HMAC format: "{timestamp}\n{method}\n{path}\n{body}"
  *
  * PHP 7.4+ — no external dependencies.
  *
@@ -18,40 +19,45 @@ namespace AilabsAudit\Tracker;
 class AilabsTracker
 {
     /** @var string */
-    private string $trackerId;
+    private string $apiKey;
 
     /** @var string */
     private string $apiSecret;
 
     /** @var string */
+    private string $clientId;
+
+    /** @var string */
     private string $apiUrl;
 
-    /** @var array<string, mixed> */
-    private array $options;
+    /** @var int */
+    private int $timeout;
 
-    private const DEFAULT_API_URL = 'https://api.ailabsaudit.com/v1/collect';
+    /** @var string */
+    private string $version = '1.0.0';
+
+    /** Override with your API domain. */
+    private const DEFAULT_API_URL = 'https://YOUR_API_DOMAIN/api/v1';
 
     /**
-     * @param string $trackerId Tracker ID (e.g. TRK-00001).
+     * @param string $apiKey    API key for X-API-Key header.
      * @param string $apiSecret HMAC secret key.
-     * @param string $apiUrl    API endpoint URL.
-     * @param array<string, mixed> $options  Additional options:
-     *   - anonymize_ip (bool): Zero last IP octet. Default: true.
-     *   - timeout (int): HTTP timeout in seconds. Default: 5.
+     * @param string $clientId  Client identifier.
+     * @param string $apiUrl    API base URL.
+     * @param int    $timeout   HTTP timeout in seconds.
      */
     public function __construct(
-        string $trackerId,
+        string $apiKey,
         string $apiSecret,
+        string $clientId,
         string $apiUrl = self::DEFAULT_API_URL,
-        array $options = []
+        int $timeout = 5
     ) {
-        $this->trackerId = $trackerId;
+        $this->apiKey    = $apiKey;
         $this->apiSecret = $apiSecret;
-        $this->apiUrl    = $apiUrl;
-        $this->options   = array_merge([
-            'anonymize_ip' => true,
-            'timeout'      => 5,
-        ], $options);
+        $this->clientId  = $clientId;
+        $this->apiUrl    = rtrim($apiUrl, '/');
+        $this->timeout   = $timeout;
     }
 
     // -----------------------------------------------------------------
@@ -59,118 +65,84 @@ class AilabsTracker
     // -----------------------------------------------------------------
 
     /**
-     * Track a page view for the current request.
+     * Send a batch of events to the API.
      *
-     * @param array<string, mixed> $meta Optional metadata.
+     * @param array<int, array<string, mixed>> $events
      * @return array{success: bool, status_code: int, body: string}
      */
-    public function trackPageView(array $meta = []): array
+    public function sendEvents(array $events): array
     {
-        $url = $this->getCurrentUrl();
-        return $this->trackEvent('page_view', $url, $meta);
-    }
+        $payload = json_encode([
+            'client_id'      => $this->clientId,
+            'plugin_type'    => 'php',
+            'plugin_version' => $this->version,
+            'batch_id'       => $this->uuid4(),
+            'events'         => $events,
+        ], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
 
-    /**
-     * Track a custom event.
-     *
-     * @param string $event Event name (e.g. "cta_click").
-     * @param string $url   Page URL.
-     * @param array<string, mixed> $meta Optional metadata.
-     * @return array{success: bool, status_code: int, body: string}
-     */
-    public function trackEvent(string $event, string $url, array $meta = []): array
-    {
-        $payload = $this->buildPayload($event, $url, $meta);
-        return $this->send($payload);
-    }
-
-    // -----------------------------------------------------------------
-    // Canonicalization & HMAC signing
-    // -----------------------------------------------------------------
-
-    /**
-     * Canonicalize a payload: sort keys recursively, compact JSON.
-     *
-     * @param array<string, mixed> $payload
-     * @return string Canonical JSON string.
-     */
-    public static function canonicalize(array $payload): string
-    {
-        $sorted = self::sortRecursive($payload);
-        $json = json_encode($sorted, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
-        if ($json === false) {
-            return '{}';
+        if ($payload === false) {
+            return ['success' => false, 'status_code' => 0, 'body' => 'json_encode failed'];
         }
-        return $json;
+
+        return $this->send('POST', '/api/v1/tracking/events', '/tracking/events', $payload);
     }
 
     /**
-     * Compute HMAC-SHA256 signature of a canonical JSON string.
+     * Verify API connection.
      *
-     * @param string $canonicalJson Canonicalized payload.
-     * @param string $secret        HMAC secret.
+     * @return array{success: bool, status_code: int, body: string}
+     */
+    public function verifyConnection(): array
+    {
+        $payload = json_encode([
+            'tracking_api_key' => $this->apiKey,
+            'client_id'        => $this->clientId,
+            'plugin_type'      => 'php',
+            'plugin_version'   => $this->version,
+        ], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+
+        if ($payload === false) {
+            return ['success' => false, 'status_code' => 0, 'body' => 'json_encode failed'];
+        }
+
+        return $this->send('POST', '/api/v1/tracking/verify', '/tracking/verify', $payload);
+    }
+
+    // -----------------------------------------------------------------
+    // HMAC signing
+    // -----------------------------------------------------------------
+
+    /**
+     * Compute HMAC-SHA256 signature.
+     *
+     * Format: "{timestamp}\n{method}\n{path}\n{body}"
+     *
+     * @param string $timestamp Unix epoch seconds.
+     * @param string $method    HTTP method.
+     * @param string $path      API path.
+     * @param string $body      JSON body (empty string for GET).
+     * @param string $secret    HMAC secret.
      * @return string Lowercase hex signature (64 chars).
      */
-    public static function sign(string $canonicalJson, string $secret): string
+    public static function sign(string $timestamp, string $method, string $path, string $body, string $secret): string
     {
-        return hash_hmac('sha256', $canonicalJson, $secret);
+        $stringToSign = $timestamp . "\n" . $method . "\n" . $path . "\n" . $body;
+        return hash_hmac('sha256', $stringToSign, $secret);
     }
 
     /**
-     * Build the X-Signature header value.
+     * Build the X-Signature header value (raw hex, no prefix).
      *
-     * @param string $canonicalJson Canonicalized payload.
-     * @param string $secret        HMAC secret.
-     * @return string e.g. "sha256=abcdef..."
+     * @param string $timestamp
+     * @param string $method
+     * @param string $path
+     * @param string $body
+     * @param string $secret
+     * @return string
      */
-    public static function signatureHeader(string $canonicalJson, string $secret): string
+    public static function signatureHeader(string $timestamp, string $method, string $path, string $body, string $secret): string
     {
-        return 'sha256=' . self::sign($canonicalJson, $secret);
-    }
-
-    // -----------------------------------------------------------------
-    // Payload building
-    // -----------------------------------------------------------------
-
-    /**
-     * Build a tracking payload array.
-     *
-     * @param string $event Event type.
-     * @param string $url   Page URL.
-     * @param array<string, mixed> $meta  Optional metadata.
-     * @return array<string, mixed>
-     */
-    private function buildPayload(string $event, string $url, array $meta = []): array
-    {
-        $payload = [
-            'event'      => $event,
-            'timestamp'  => gmdate('Y-m-d\TH:i:s\Z'),
-            'tracker_id' => $this->trackerId,
-            'url'        => $url,
-        ];
-
-        $referrer = $_SERVER['HTTP_REFERER'] ?? '';
-        if ($referrer !== '') {
-            $payload['referrer'] = $referrer;
-        }
-
-        $userAgent = $_SERVER['HTTP_USER_AGENT'] ?? '';
-        if ($userAgent !== '') {
-            $payload['user_agent'] = $userAgent;
-        }
-
-        $ip = $this->getClientIp();
-        if ($ip !== '') {
-            $payload['ip'] = $this->options['anonymize_ip']
-                ? $this->anonymizeIp($ip)
-                : $ip;
-        }
-
-        if (!empty($meta)) {
-            $payload['meta'] = $meta;
-        }
-
-        return $payload;
+        return self::sign($timestamp, $method, $path, $body, $secret);
     }
 
     // -----------------------------------------------------------------
@@ -178,50 +150,56 @@ class AilabsTracker
     // -----------------------------------------------------------------
 
     /**
-     * Send a signed payload to the API.
+     * Send a signed request to the API.
      *
-     * @param array<string, mixed> $payload
+     * @param string $method   HTTP method.
+     * @param string $hmacPath Path used for HMAC (includes /api/v1 prefix).
+     * @param string $urlPath  Path appended to API URL.
+     * @param string $body     JSON body.
      * @return array{success: bool, status_code: int, body: string}
      */
-    private function send(array $payload): array
+    private function send(string $method, string $hmacPath, string $urlPath, string $body): array
     {
-        $canonical = self::canonicalize($payload);
-        $signature = self::signatureHeader($canonical, $this->apiSecret);
-        $timestamp = $payload['timestamp'] ?? gmdate('Y-m-d\TH:i:s\Z');
+        $timestamp = (string) time();
+        $nonce     = $this->uuid4();
+        $signature = self::sign($timestamp, $method, $hmacPath, $body, $this->apiSecret);
 
-        $ch = curl_init($this->apiUrl);
+        $ch = curl_init($this->apiUrl . $urlPath);
         if ($ch === false) {
             return ['success' => false, 'status_code' => 0, 'body' => 'curl_init failed'];
         }
 
         curl_setopt_array($ch, [
             CURLOPT_POST           => true,
-            CURLOPT_POSTFIELDS     => $canonical,
+            CURLOPT_POSTFIELDS     => $body,
             CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_TIMEOUT        => (int) $this->options['timeout'],
+            CURLOPT_TIMEOUT        => $this->timeout,
             CURLOPT_CONNECTTIMEOUT => 3,
+            CURLOPT_SSL_VERIFYPEER => true,
+            CURLOPT_SSL_VERIFYHOST => 2,
             CURLOPT_HTTPHEADER     => [
                 'Content-Type: application/json',
-                'X-Tracker-Id: ' . $this->trackerId,
-                'X-Signature: '  . $signature,
+                'X-API-Key: '    . $this->apiKey,
                 'X-Timestamp: '  . $timestamp,
-                'User-Agent: AilabsAudit-PHP/1.0.0',
+                'X-Nonce: '      . $nonce,
+                'X-Signature: '  . $signature,
+                'User-Agent: AilabsauditTracker/' . $this->version . ' PHP/' . PHP_VERSION,
             ],
         ]);
 
-        $body     = curl_exec($ch);
-        $httpCode = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        $error    = curl_error($ch);
+        $responseBody = curl_exec($ch);
+        $httpCode     = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $error        = curl_error($ch);
         curl_close($ch);
 
-        if ($body === false) {
+        if ($responseBody === false) {
             return ['success' => false, 'status_code' => 0, 'body' => $error];
         }
 
         return [
             'success'     => $httpCode >= 200 && $httpCode < 300,
             'status_code' => $httpCode,
-            'body'        => (string) $body,
+            'body'        => (string) $responseBody,
         ];
     }
 
@@ -230,77 +208,13 @@ class AilabsTracker
     // -----------------------------------------------------------------
 
     /**
-     * Recursively sort array keys alphabetically.
-     *
-     * @param mixed $data
-     * @return mixed
+     * Generate a UUID v4.
      */
-    private static function sortRecursive($data)
+    private function uuid4(): string
     {
-        if (!is_array($data)) {
-            return $data;
-        }
-
-        // Associative array check.
-        if (array_keys($data) !== range(0, count($data) - 1)) {
-            ksort($data, SORT_STRING);
-        }
-
-        foreach ($data as $key => $value) {
-            if (is_array($value)) {
-                $data[$key] = self::sortRecursive($value);
-            }
-        }
-
-        return $data;
-    }
-
-    /**
-     * Get client IP from common headers.
-     */
-    private function getClientIp(): string
-    {
-        foreach (['HTTP_CF_CONNECTING_IP', 'HTTP_X_FORWARDED_FOR', 'HTTP_X_REAL_IP', 'REMOTE_ADDR'] as $header) {
-            $value = $_SERVER[$header] ?? '';
-            if ($value === '') {
-                continue;
-            }
-            // X-Forwarded-For may contain multiple IPs.
-            if (strpos($value, ',') !== false) {
-                $value = trim(explode(',', $value)[0]);
-            }
-            if (filter_var($value, FILTER_VALIDATE_IP)) {
-                return $value;
-            }
-        }
-        return '';
-    }
-
-    /**
-     * Anonymize IP by zeroing last octet (IPv4) or last 80 bits (IPv6).
-     */
-    private function anonymizeIp(string $ip): string
-    {
-        if (filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4)) {
-            return preg_replace('/\.\d+$/', '.0', $ip) ?? $ip;
-        }
-        if (filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV6)) {
-            $packed = inet_pton($ip);
-            if ($packed !== false) {
-                return inet_ntop(substr($packed, 0, 6) . str_repeat("\0", 10));
-            }
-        }
-        return $ip;
-    }
-
-    /**
-     * Get the current page URL from server variables.
-     */
-    private function getCurrentUrl(): string
-    {
-        $scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
-        $host   = $_SERVER['HTTP_HOST'] ?? 'localhost';
-        $uri    = $_SERVER['REQUEST_URI'] ?? '/';
-        return $scheme . '://' . $host . $uri;
+        $bytes = random_bytes(16);
+        $bytes[6] = chr(ord($bytes[6]) & 0x0f | 0x40);
+        $bytes[8] = chr(ord($bytes[8]) & 0x3f | 0x80);
+        return vsprintf('%s%s-%s-%s-%s-%s%s%s', str_split(bin2hex($bytes), 4));
     }
 }

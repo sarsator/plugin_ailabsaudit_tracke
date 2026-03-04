@@ -3,8 +3,12 @@
 /**
  * HMAC Test for Cloudflare Worker collector.
  *
- * Uses Node.js crypto to simulate Web Crypto API behavior,
- * validates canonicalize() against spec/test-vectors.json.
+ * Uses Node.js crypto to simulate Web Crypto API behavior.
+ * Validates sign() against spec/test-vectors.json.
+ *
+ * New format: "{timestamp}\n{method}\n{path}\n{body}"
+ * Signature is raw hex (no sha256= prefix).
+ * No canonicalization — body is signed as-is.
  *
  * Run: node tests/hmac.test.js
  */
@@ -13,30 +17,16 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 
-// We can't import ES modules directly, so we replicate the pure functions
-// (they're identical to the worker source). The worker uses Web Crypto
-// but canonicalize/sortRecursive are plain JS.
+// Replicate the worker sign logic using Node.js crypto.
+// The worker uses Web Crypto API but the signing logic is identical.
 
-function sortRecursive(data) {
-  if (data === null || typeof data !== 'object') return data;
-  if (Array.isArray(data)) return data.map(sortRecursive);
-  const sorted = {};
-  for (const key of Object.keys(data).sort()) {
-    sorted[key] = sortRecursive(data[key]);
-  }
-  return sorted;
+function sign(timestamp, method, pathStr, body, secret) {
+  const stringToSign = `${timestamp}\n${method}\n${pathStr}\n${body}`;
+  return crypto.createHmac('sha256', secret).update(stringToSign, 'utf8').digest('hex');
 }
 
-function canonicalize(payload) {
-  return JSON.stringify(sortRecursive(payload));
-}
-
-function sign(canonicalJson, secret) {
-  return crypto.createHmac('sha256', secret).update(canonicalJson, 'utf8').digest('hex');
-}
-
-function signatureHeader(canonicalJson, secret) {
-  return 'sha256=' + sign(canonicalJson, secret);
+function signatureHeader(timestamp, method, pathStr, body, secret) {
+  return sign(timestamp, method, pathStr, body, secret);
 }
 
 // -----------------------------------------------------------------
@@ -52,19 +42,15 @@ let passed = 0;
 let failed = 0;
 
 for (const v of vectors) {
-  const canonical = canonicalize(v.payload);
-  const sig = sign(canonical, secret);
-  const header = signatureHeader(canonical, secret);
+  const sig = sign(v.timestamp, v.method, v.path, v.body, secret);
+  const header = signatureHeader(v.timestamp, v.method, v.path, v.body, secret);
   const errors = [];
 
-  if (canonical !== v.canonical) {
-    errors.push(`  canonical mismatch\n    expected: ${v.canonical}\n    actual:   ${canonical}`);
-  }
   if (sig !== v.signature) {
     errors.push(`  signature mismatch\n    expected: ${v.signature}\n    actual:   ${sig}`);
   }
-  if (header !== v.header) {
-    errors.push(`  header mismatch\n    expected: ${v.header}\n    actual:   ${header}`);
+  if (header !== v.signature) {
+    errors.push(`  header mismatch\n    expected: ${v.signature}\n    actual:   ${header}`);
   }
 
   if (errors.length > 0) {

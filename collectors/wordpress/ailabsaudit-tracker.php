@@ -1,68 +1,150 @@
 <?php
 /**
- * Plugin Name:       AI Labs Audit Tracker
- * Plugin URI:        https://github.com/ailabssolutions/ailabsaudit-tracker
- * Description:       Lightweight tracking collector for AI Labs Audit — captures page views and events, signs payloads with HMAC-SHA256.
- * Version:           1.0.0
- * Requires at least: 5.6
- * Requires PHP:      7.4
- * Author:            AI Labs Solutions
- * Author URI:        https://ailabssolutions.com
- * License:           MIT
- * License URI:       https://opensource.org/licenses/MIT
- * Text Domain:       ailabsaudit-tracker
- * Domain Path:       /languages
+ * Plugin Name: AI Labs Audit Tracker
+ * Plugin URI: https://github.com/ailabsaudit/tracker
+ * Description: Track AI bot crawls and AI-generated referral traffic on your website.
+ * Version: 1.0.0
+ * Requires at least: 5.8
+ * Requires PHP: 7.4
+ * Author: AI Labs Audit
+ * Author URI: https://github.com/ailabsaudit
+ * License: GPL-2.0-or-later
+ * License URI: https://www.gnu.org/licenses/gpl-2.0.html
+ * Text Domain: ailabsaudit-tracker
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'AILABSAUDIT_TRACKER_VERSION', '1.0.0' );
-define( 'AILABSAUDIT_TRACKER_FILE', __FILE__ );
-define( 'AILABSAUDIT_TRACKER_DIR', plugin_dir_path( __FILE__ ) );
-define( 'AILABSAUDIT_TRACKER_URL', plugin_dir_url( __FILE__ ) );
+define( 'AILABSAUDIT_VERSION', '1.0.0' );
+define( 'AILABSAUDIT_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
+define( 'AILABSAUDIT_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
+// Default API base URL — override via Settings > AI Labs Audit > API URL.
+define( 'AILABSAUDIT_API_URL', 'https://YOUR_API_DOMAIN/api/v1' );
 
-require_once AILABSAUDIT_TRACKER_DIR . 'includes/class-ailabsaudit-settings.php';
-require_once AILABSAUDIT_TRACKER_DIR . 'includes/class-ailabsaudit-collector.php';
-require_once AILABSAUDIT_TRACKER_DIR . 'includes/class-ailabsaudit-signer.php';
-require_once AILABSAUDIT_TRACKER_DIR . 'includes/class-ailabsaudit-sender.php';
+require_once AILABSAUDIT_PLUGIN_DIR . 'includes/class-ailabsaudit-cache.php';
+require_once AILABSAUDIT_PLUGIN_DIR . 'includes/class-ailabsaudit-detector.php';
+require_once AILABSAUDIT_PLUGIN_DIR . 'includes/class-ailabsaudit-buffer.php';
+require_once AILABSAUDIT_PLUGIN_DIR . 'includes/class-ailabsaudit-sender.php';
 
-/**
- * Initialize the plugin.
- */
-function ailabsaudit_tracker_init() {
-	$settings  = new AiLabsAudit_Settings();
-	$signer    = new AiLabsAudit_Signer();
-	$sender    = new AiLabsAudit_Sender( $signer );
-	$collector = new AiLabsAudit_Collector( $settings, $sender );
-
-	$settings->init();
-	$collector->init();
+if ( is_admin() ) {
+	require_once AILABSAUDIT_PLUGIN_DIR . 'admin/class-ailabsaudit-settings.php';
 }
-add_action( 'plugins_loaded', 'ailabsaudit_tracker_init' );
 
 /**
- * Run on plugin activation.
+ * Main plugin class — singleton.
  */
-function ailabsaudit_tracker_activate() {
-	$defaults = array(
-		'tracker_id'   => '',
-		'api_secret'   => '',
-		'api_url'      => 'https://api.ailabsaudit.com/v1/collect',
-		'track_admin'  => 'no',
-		'anonymize_ip' => 'yes',
-	);
-	if ( ! get_option( 'ailabsaudit_tracker_settings' ) ) {
-		add_option( 'ailabsaudit_tracker_settings', $defaults, '', false );
+final class Ailabsaudit_Tracker {
+
+	/** @var self|null */
+	private static $instance = null;
+
+	/**
+	 * Get singleton instance.
+	 *
+	 * @return self
+	 */
+	public static function instance() {
+		if ( null === self::$instance ) {
+			self::$instance = new self();
+		}
+		return self::$instance;
+	}
+
+	private function __construct() {
+		add_action( 'init', array( $this, 'register_cron' ) );
+		add_action( 'template_redirect', array( 'Ailabsaudit_Detector', 'detect' ), 1 );
+		add_action( 'ailabsaudit_flush_buffer', array( 'Ailabsaudit_Sender', 'flush' ) );
+		add_action( 'ailabsaudit_refresh_signatures', array( $this, 'refresh_signatures' ) );
+
+		if ( is_admin() ) {
+			new Ailabsaudit_Settings();
+		}
+	}
+
+	/**
+	 * Refresh bot signatures and AI referrers from API.
+	 */
+	public function refresh_signatures() {
+		Ailabsaudit_Cache::refresh_bot_signatures();
+		Ailabsaudit_Cache::refresh_ai_referrers();
+	}
+
+	/**
+	 * Register custom cron schedules and schedule events.
+	 */
+	public function register_cron() {
+		add_filter( 'cron_schedules', function ( $schedules ) {
+			if ( ! isset( $schedules['ailabsaudit_five_minutes'] ) ) {
+				$schedules['ailabsaudit_five_minutes'] = array(
+					'interval' => 300,
+					'display'  => __( 'Every 5 Minutes', 'ailabsaudit-tracker' ),
+				);
+			}
+			return $schedules;
+		} );
+
+		if ( ! wp_next_scheduled( 'ailabsaudit_flush_buffer' ) ) {
+			wp_schedule_event( time(), 'ailabsaudit_five_minutes', 'ailabsaudit_flush_buffer' );
+		}
+
+		if ( ! wp_next_scheduled( 'ailabsaudit_refresh_signatures' ) ) {
+			wp_schedule_event( time(), 'daily', 'ailabsaudit_refresh_signatures' );
+		}
+	}
+
+	/**
+	 * Activation hook.
+	 */
+	public static function activate() {
+		if ( false === get_option( 'ailabsaudit_api_key' ) ) {
+			add_option( 'ailabsaudit_api_key', '' );
+		}
+		if ( false === get_option( 'ailabsaudit_hmac_secret' ) ) {
+			add_option( 'ailabsaudit_hmac_secret', '' );
+		}
+		if ( false === get_option( 'ailabsaudit_client_id' ) ) {
+			add_option( 'ailabsaudit_client_id', '' );
+		}
+		if ( false === get_option( 'ailabsaudit_api_url' ) ) {
+			add_option( 'ailabsaudit_api_url', AILABSAUDIT_API_URL );
+		}
+		if ( false === get_option( 'ailabsaudit_status' ) ) {
+			add_option( 'ailabsaudit_status', 'not_configured' );
+		}
+
+		// Register the custom schedule before scheduling events.
+		add_filter( 'cron_schedules', function ( $schedules ) {
+			if ( ! isset( $schedules['ailabsaudit_five_minutes'] ) ) {
+				$schedules['ailabsaudit_five_minutes'] = array(
+					'interval' => 300,
+					'display'  => 'Every 5 Minutes',
+				);
+			}
+			return $schedules;
+		} );
+
+		if ( ! wp_next_scheduled( 'ailabsaudit_flush_buffer' ) ) {
+			wp_schedule_event( time(), 'ailabsaudit_five_minutes', 'ailabsaudit_flush_buffer' );
+		}
+		if ( ! wp_next_scheduled( 'ailabsaudit_refresh_signatures' ) ) {
+			wp_schedule_event( time(), 'daily', 'ailabsaudit_refresh_signatures' );
+		}
+	}
+
+	/**
+	 * Deactivation hook.
+	 */
+	public static function deactivate() {
+		wp_clear_scheduled_hook( 'ailabsaudit_flush_buffer' );
+		wp_clear_scheduled_hook( 'ailabsaudit_refresh_signatures' );
+
+		Ailabsaudit_Sender::flush();
 	}
 }
-register_activation_hook( __FILE__, 'ailabsaudit_tracker_activate' );
 
-/**
- * Run on plugin deactivation.
- */
-function ailabsaudit_tracker_deactivate() {
-	wp_clear_scheduled_hook( 'ailabsaudit_flush_queue' );
-}
-register_deactivation_hook( __FILE__, 'ailabsaudit_tracker_deactivate' );
+register_activation_hook( __FILE__, array( 'Ailabsaudit_Tracker', 'activate' ) );
+register_deactivation_hook( __FILE__, array( 'Ailabsaudit_Tracker', 'deactivate' ) );
+
+add_action( 'plugins_loaded', array( 'Ailabsaudit_Tracker', 'instance' ), 1 );

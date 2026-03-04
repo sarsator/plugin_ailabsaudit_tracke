@@ -1,31 +1,42 @@
 # AI Labs Audit Tracker — Cloudflare Worker Collector
 
-Transparent page-view tracking that runs on the Cloudflare edge. Sits in front of your origin, signs payloads with HMAC-SHA256 via Web Crypto API, and sends events without blocking the response.
+Transparent AI bot and referral detection that runs on the Cloudflare edge. Sits in front of your origin, signs payloads with HMAC-SHA256 via Web Crypto API, and sends events without blocking the response.
 
 ## Setup
 
 1. Install wrangler: `npm install -g wrangler`
-2. Set secrets:
+2. Edit `wrangler.toml` and set `API_URL` to your API base URL.
+3. Set secrets:
    ```bash
-   wrangler secret put TRACKER_ID
+   wrangler secret put API_KEY
    wrangler secret put API_SECRET
+   wrangler secret put CLIENT_ID
    ```
-3. Deploy: `wrangler deploy`
+4. Deploy: `wrangler deploy`
 
-## Configuration (`wrangler.toml`)
+## Configuration
 
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `API_URL` | Ingestion endpoint | `https://api.ailabsaudit.com/v1/collect` |
-| `TRACKER_ID` | Tracker ID (secret) | — |
-| `API_SECRET` | HMAC secret (secret) | — |
+### `wrangler.toml` vars
+
+| Variable | Description | Required |
+|----------|-------------|----------|
+| `API_URL` | API base URL | Yes |
+
+### Secrets (via `wrangler secret put`)
+
+| Secret | Description |
+|--------|-------------|
+| `API_KEY` | API key for `X-API-Key` header |
+| `API_SECRET` | HMAC signing secret |
+| `CLIENT_ID` | Your client identifier |
 
 ## How it works
 
 - Intercepts `GET` requests (skips static assets by extension)
-- Builds a `page_view` payload with URL, referrer, user-agent, anonymized IP
+- Detects AI bot user-agents (50+ signatures) and AI referrers (20+ domains)
 - Signs and sends the event via `ctx.waitUntil()` (fire-and-forget)
 - Passes the request through to origin unmodified
+- Zero personal data collected (no IP, no cookies)
 
 ## Tests
 

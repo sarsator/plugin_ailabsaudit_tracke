@@ -1,46 +1,25 @@
 /**
  * AI Labs Audit Tracker — Cloudflare Worker Collector
  *
- * Sits in front of your origin and tracks page views automatically.
+ * Sits in front of your origin and tracks AI bot crawls and AI referrals.
  * Signs payloads with HMAC-SHA256 using the Web Crypto API.
  *
+ * HMAC format: "{timestamp}\n{method}\n{path}\n{body}"
+ *
  * Secrets (set via `wrangler secret put`):
- *   TRACKER_ID  — Your tracker ID (e.g. TRK-00001)
+ *   API_KEY     — Your API key
  *   API_SECRET  — HMAC signing secret
+ *   CLIENT_ID   — Your client identifier
  *
  * Env vars (wrangler.toml [vars]):
- *   API_URL     — Ingestion endpoint
+ *   API_URL     — API base URL (must be set in wrangler.toml or env)
  */
 
 const encoder = new TextEncoder();
 
 // -----------------------------------------------------------------
-// Canonicalization & HMAC signing (Web Crypto)
+// HMAC signing (Web Crypto)
 // -----------------------------------------------------------------
-
-/**
- * Recursively sort object keys alphabetically.
- * @param {*} data
- * @returns {*}
- */
-function sortRecursive(data) {
-  if (data === null || typeof data !== 'object') return data;
-  if (Array.isArray(data)) return data.map(sortRecursive);
-  const sorted = {};
-  for (const key of Object.keys(data).sort()) {
-    sorted[key] = sortRecursive(data[key]);
-  }
-  return sorted;
-}
-
-/**
- * Canonicalize payload to deterministic JSON (sorted keys, compact).
- * @param {Object} payload
- * @returns {string}
- */
-function canonicalize(payload) {
-  return JSON.stringify(sortRecursive(payload));
-}
 
 /**
  * Import a secret string as an HMAC CryptoKey.
@@ -58,88 +37,150 @@ async function importKey(secret) {
 }
 
 /**
- * Compute HMAC-SHA256 and return lowercase hex.
- * @param {string} canonicalJson
- * @param {string} secret
- * @returns {Promise<string>}
+ * Compute HMAC-SHA256 signature.
+ *
+ * Format: "{timestamp}\n{method}\n{path}\n{body}"
+ *
+ * @param {string} timestamp Unix epoch seconds.
+ * @param {string} method    HTTP method.
+ * @param {string} path      API path.
+ * @param {string} body      JSON body (empty string for GET).
+ * @param {string} secret    HMAC secret.
+ * @returns {Promise<string>} Lowercase hex signature.
  */
-async function sign(canonicalJson, secret) {
+async function sign(timestamp, method, path, body, secret) {
+  const stringToSign = `${timestamp}\n${method}\n${path}\n${body}`;
   const key = await importKey(secret);
-  const sig = await crypto.subtle.sign('HMAC', key, encoder.encode(canonicalJson));
+  const sig = await crypto.subtle.sign('HMAC', key, encoder.encode(stringToSign));
   return Array.from(new Uint8Array(sig))
     .map((b) => b.toString(16).padStart(2, '0'))
     .join('');
 }
 
 /**
- * Build X-Signature header value.
- * @param {string} canonicalJson
+ * Build X-Signature header value (raw hex, no prefix).
+ * @param {string} timestamp
+ * @param {string} method
+ * @param {string} path
+ * @param {string} body
  * @param {string} secret
  * @returns {Promise<string>}
  */
-async function signatureHeader(canonicalJson, secret) {
-  return 'sha256=' + await sign(canonicalJson, secret);
+async function signatureHeader(timestamp, method, path, body, secret) {
+  return sign(timestamp, method, path, body, secret);
 }
 
 // -----------------------------------------------------------------
-// Payload building
+// Event detection
 // -----------------------------------------------------------------
 
+const DEFAULT_BOT_SIGNATURES = [
+  'GPTBot', 'ChatGPT-User', 'OAI-SearchBot', 'Operator',
+  'ClaudeBot', 'Claude-Web', 'Claude-SearchBot', 'anthropic-ai',
+  'Google-Extended', 'GoogleOther', 'PerplexityBot',
+  'meta-externalagent', 'FacebookBot', 'facebookexternalhit',
+  'bingbot', 'CopilotBot', 'Applebot', 'Applebot-Extended',
+  'Bytespider', 'ByteDance', 'Amazonbot', 'CCBot', 'Diffbot',
+  'cohere-ai', 'YouBot', 'DeepSeekBot', 'Mistral',
+];
+
+const DEFAULT_AI_REFERRERS = [
+  'chatgpt.com', 'chat.openai.com', 'perplexity.ai', 'claude.ai',
+  'gemini.google.com', 'copilot.microsoft.com', 'poe.com', 'you.com',
+  'phind.com', 'deepseek.com', 'chat.deepseek.com', 'meta.ai',
+  'chat.mistral.ai', 'kagi.com', 'brave.com', 'character.ai',
+];
+
 /**
- * Build a tracking payload from the incoming request.
+ * Detect bot crawl or AI referral from the request.
  * @param {Request} request
- * @param {string} trackerId
- * @returns {Object}
+ * @returns {{type: string, data: Object}|null}
  */
-function buildPayload(request, trackerId) {
+function detectEvent(request) {
+  const ua = request.headers.get('user-agent') || '';
   const url = new URL(request.url);
-  const payload = {
-    event: 'page_view',
-    timestamp: new Date().toISOString().replace(/\.\d{3}Z$/, 'Z'),
-    tracker_id: trackerId,
-    url: url.origin + url.pathname + url.search,
-  };
+  const pageUrl = url.pathname + url.search;
 
-  const referrer = request.headers.get('referer');
-  if (referrer) payload.referrer = referrer;
-
-  const ua = request.headers.get('user-agent');
-  if (ua) payload.user_agent = ua;
-
-  const ip = request.headers.get('cf-connecting-ip');
-  if (ip) {
-    // Anonymize IPv4: zero last octet
-    payload.ip = ip.replace(/\.\d+$/, '.0');
+  // Check for AI bot
+  if (ua) {
+    const uaLower = ua.toLowerCase();
+    for (const sig of DEFAULT_BOT_SIGNATURES) {
+      if (uaLower.includes(sig.toLowerCase())) {
+        return {
+          type: 'bot_crawl',
+          user_agent: ua.substring(0, 500),
+          url: pageUrl.substring(0, 2000),
+          timestamp: new Date().toISOString(),
+          status_code: 200,
+          response_size: 0,
+        };
+      }
+    }
   }
 
-  return payload;
+  // Check for AI referrer
+  const referer = request.headers.get('referer') || '';
+  if (referer) {
+    try {
+      const refUrl = new URL(referer);
+      const host = refUrl.hostname.toLowerCase();
+      for (const domain of DEFAULT_AI_REFERRERS) {
+        if (host === domain || host.endsWith('.' + domain)) {
+          return {
+            type: 'ai_referral',
+            referrer_domain: domain,
+            url: pageUrl.substring(0, 2000),
+            timestamp: new Date().toISOString(),
+          };
+        }
+      }
+    } catch (e) {
+      // Invalid referer URL, skip
+    }
+  }
+
+  return null;
 }
 
 // -----------------------------------------------------------------
-// Send event to API (fire-and-forget via waitUntil)
+// Send events to API (fire-and-forget via waitUntil)
 // -----------------------------------------------------------------
 
 /**
- * Send a signed event to the ingestion API.
- * @param {Object} payload
- * @param {string} apiUrl
- * @param {string} apiSecret
- * @param {string} trackerId
+ * Send a batch of events to the ingestion API.
+ * @param {Object[]} events
+ * @param {Object} env
  * @returns {Promise<Response>}
  */
-async function sendEvent(payload, apiUrl, apiSecret, trackerId) {
-  const canonical = canonicalize(payload);
-  const sig = await signatureHeader(canonical, apiSecret);
+async function sendEvents(events, env) {
+  if (!env.API_URL) {
+    throw new Error('AilabsAudit: API_URL environment variable is required.');
+  }
+  const apiUrl = env.API_URL.replace(/\/$/, '');
 
-  return fetch(apiUrl, {
+  const body = JSON.stringify({
+    client_id: env.CLIENT_ID,
+    plugin_type: 'cloudflare',
+    plugin_version: '1.0.0',
+    batch_id: crypto.randomUUID(),
+    events,
+  });
+
+  const timestamp = String(Math.floor(Date.now() / 1000));
+  const nonce = crypto.randomUUID();
+  const hmacPath = '/api/v1/tracking/events';
+  const signature = await sign(timestamp, 'POST', hmacPath, body, env.API_SECRET);
+
+  return fetch(apiUrl + '/tracking/events', {
     method: 'POST',
-    body: canonical,
+    body,
     headers: {
       'Content-Type': 'application/json',
-      'X-Tracker-Id': trackerId,
-      'X-Signature': sig,
-      'X-Timestamp': payload.timestamp,
-      'User-Agent': 'AilabsAudit-CFWorker/1.0.0',
+      'X-API-Key': env.API_KEY,
+      'X-Timestamp': timestamp,
+      'X-Nonce': nonce,
+      'X-Signature': signature,
+      'User-Agent': 'AilabsauditTracker/1.0.0 Cloudflare-Worker',
     },
   });
 }
@@ -158,17 +199,19 @@ export default {
     const shouldTrack =
       request.method === 'GET' &&
       !skipExtensions.includes(ext) &&
-      env.TRACKER_ID &&
-      env.API_SECRET;
+      env.API_KEY &&
+      env.API_SECRET &&
+      env.CLIENT_ID;
 
     if (shouldTrack) {
-      const payload = buildPayload(request, env.TRACKER_ID);
-      const apiUrl = env.API_URL || 'https://api.ailabsaudit.com/v1/collect';
-
-      // Fire-and-forget: don't block the response to origin
-      ctx.waitUntil(
-        sendEvent(payload, apiUrl, env.API_SECRET, env.TRACKER_ID).catch(() => {}),
-      );
+      const event = detectEvent(request);
+      if (event) {
+        ctx.waitUntil(
+          sendEvents([event], env).catch((err) => {
+            console.error('AilabsAudit: send failed —', err.message);
+          }),
+        );
+      }
     }
 
     // Pass through to origin
@@ -177,4 +220,4 @@ export default {
 };
 
 // Export signing functions for testing
-export { canonicalize, sign, signatureHeader, sortRecursive };
+export { sign, signatureHeader };

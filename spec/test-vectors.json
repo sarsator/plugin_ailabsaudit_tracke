@@ -2,57 +2,57 @@
   "description": "HMAC-SHA256 test vectors for ailabsaudit-tracker collectors",
   "algorithm": "HMAC-SHA256",
   "secret": "whsec_test_secret_key_for_ailabsaudit_tracker",
-  "note": "Payloads are canonicalized: keys sorted alphabetically, compact JSON (no whitespace), UTF-8",
+  "note": "String to sign format: \"{timestamp}\\n{method}\\n{path}\\n{body}\". Signature is raw hex (no sha256= prefix). Body is signed as-is, no canonicalization.",
   "vectors": [
     {
-      "name": "minimal_page_view",
-      "description": "Minimal required fields only",
-      "payload": {
-        "event": "page_view",
-        "timestamp": "2026-03-04T12:00:00Z",
-        "tracker_id": "TRK-001",
-        "url": "https://example.com"
-      },
-      "canonical": "{\"event\":\"page_view\",\"timestamp\":\"2026-03-04T12:00:00Z\",\"tracker_id\":\"TRK-001\",\"url\":\"https://example.com\"}",
-      "signature": "38a1f33bab70b46143c0a9528640be0fee83a9ddcbb94395018460f6b81394ce",
-      "header": "sha256=38a1f33bab70b46143c0a9528640be0fee83a9ddcbb94395018460f6b81394ce"
+      "name": "batch_events_empty",
+      "description": "POST batch with empty events array",
+      "timestamp": "1709553600",
+      "method": "POST",
+      "path": "/api/v1/tracking/events",
+      "body": "{\"client_id\":\"CLT-001\",\"plugin_type\":\"wordpress\",\"plugin_version\":\"1.0.0\",\"batch_id\":\"550e8400-e29b-41d4-a716-446655440000\",\"events\":[]}",
+      "string_to_sign": "1709553600\nPOST\n/api/v1/tracking/events\n{\"client_id\":\"CLT-001\",\"plugin_type\":\"wordpress\",\"plugin_version\":\"1.0.0\",\"batch_id\":\"550e8400-e29b-41d4-a716-446655440000\",\"events\":[]}",
+      "signature": "b353b0bc51830f6d938eec9190c762b5e16bc766572662d492bf2cda4953166e"
     },
     {
-      "name": "full_page_view",
-      "description": "Page view with all optional fields including nested meta",
-      "payload": {
-        "event": "page_view",
-        "timestamp": "2026-03-04T12:00:00Z",
-        "tracker_id": "TRK-001",
-        "url": "https://example.com/blog/article-1",
-        "referrer": "https://google.com",
-        "user_agent": "Mozilla/5.0",
-        "ip": "192.168.1.1",
-        "meta": {
-          "duration": 4500,
-          "scroll_depth": 75
-        }
-      },
-      "canonical": "{\"event\":\"page_view\",\"ip\":\"192.168.1.1\",\"meta\":{\"duration\":4500,\"scroll_depth\":75},\"referrer\":\"https://google.com\",\"timestamp\":\"2026-03-04T12:00:00Z\",\"tracker_id\":\"TRK-001\",\"url\":\"https://example.com/blog/article-1\",\"user_agent\":\"Mozilla/5.0\"}",
-      "signature": "56d7f6f528362848e0bc06681866b2951a11d2794cf2f30e13e72a3e14d04632",
-      "header": "sha256=56d7f6f528362848e0bc06681866b2951a11d2794cf2f30e13e72a3e14d04632"
+      "name": "batch_events_one_bot",
+      "description": "POST batch with one bot_crawl event",
+      "timestamp": "1709553600",
+      "method": "POST",
+      "path": "/api/v1/tracking/events",
+      "body": "{\"client_id\":\"CLT-001\",\"plugin_type\":\"wordpress\",\"plugin_version\":\"1.0.0\",\"batch_id\":\"550e8400-e29b-41d4-a716-446655440000\",\"events\":[{\"type\":\"bot_crawl\",\"user_agent\":\"GPTBot/1.0\",\"url\":\"/blog\",\"timestamp\":\"2026-03-04T12:00:00+00:00\",\"status_code\":200,\"response_size\":0}]}",
+      "string_to_sign": "1709553600\nPOST\n/api/v1/tracking/events\n{\"client_id\":\"CLT-001\",\"plugin_type\":\"wordpress\",\"plugin_version\":\"1.0.0\",\"batch_id\":\"550e8400-e29b-41d4-a716-446655440000\",\"events\":[{\"type\":\"bot_crawl\",\"user_agent\":\"GPTBot/1.0\",\"url\":\"/blog\",\"timestamp\":\"2026-03-04T12:00:00+00:00\",\"status_code\":200,\"response_size\":0}]}",
+      "signature": "0b4ecd1f6059481aa10b15b2c9dc0a9c92f228fa6453472562f7f7af125c7f62"
     },
     {
-      "name": "cta_click_event",
-      "description": "Custom CTA click event with meta",
-      "payload": {
-        "event": "cta_click",
-        "timestamp": "2026-03-04T12:05:00Z",
-        "tracker_id": "TRK-002",
-        "url": "https://example.com/pricing",
-        "meta": {
-          "button_id": "signup-hero",
-          "button_text": "Start Free Trial"
-        }
-      },
-      "canonical": "{\"event\":\"cta_click\",\"meta\":{\"button_id\":\"signup-hero\",\"button_text\":\"Start Free Trial\"},\"timestamp\":\"2026-03-04T12:05:00Z\",\"tracker_id\":\"TRK-002\",\"url\":\"https://example.com/pricing\"}",
-      "signature": "9c9c4e279ccb8c77331c7e55be844c25b6cb06148ee5af197c28439e22ff7292",
-      "header": "sha256=9c9c4e279ccb8c77331c7e55be844c25b6cb06148ee5af197c28439e22ff7292"
+      "name": "verify_connection",
+      "description": "POST verify connection endpoint",
+      "timestamp": "1709640000",
+      "method": "POST",
+      "path": "/api/v1/tracking/verify",
+      "body": "{\"tracking_api_key\":\"ak_test_123\",\"client_id\":\"CLT-001\",\"domain\":\"https://example.com\",\"plugin_type\":\"wordpress\",\"plugin_version\":\"1.0.0\"}",
+      "string_to_sign": "1709640000\nPOST\n/api/v1/tracking/verify\n{\"tracking_api_key\":\"ak_test_123\",\"client_id\":\"CLT-001\",\"domain\":\"https://example.com\",\"plugin_type\":\"wordpress\",\"plugin_version\":\"1.0.0\"}",
+      "signature": "88d5f7514e82cc70dda2e3cee31a622eba613b2b8360a832174e7dedd866c52b"
+    },
+    {
+      "name": "get_bot_signatures",
+      "description": "GET bot signatures with empty body",
+      "timestamp": "1709553600",
+      "method": "GET",
+      "path": "/api/v1/bot-signatures",
+      "body": "",
+      "string_to_sign": "1709553600\nGET\n/api/v1/bot-signatures\n",
+      "signature": "cdfb13937318d5b0037e714fb58c215dbd2898ef9981841d4e118474179312ee"
+    },
+    {
+      "name": "get_ai_referrers",
+      "description": "GET AI referrer domains with empty body",
+      "timestamp": "1709640000",
+      "method": "GET",
+      "path": "/api/v1/ai-referrers",
+      "body": "",
+      "string_to_sign": "1709640000\nGET\n/api/v1/ai-referrers\n",
+      "signature": "b9c497e445f15b14b1248e4910a6500895cdbb331500b0caf9391ac62b45db88"
     }
   ]
 }

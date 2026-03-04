@@ -11,9 +11,9 @@
  *
  * Usage:
  *   <script
- *     src="https://cdn.ailabsaudit.com/t.js"
- *     data-tracker-id="TRK-00001"
- *     data-api-url="https://api.ailabsaudit.com/v1/collect"
+ *     src="/path/to/tracker.js"
+ *     data-tracker-id="YOUR_TRACKER_ID"
+ *     data-api-url="https://YOUR_API_DOMAIN/api/v1/collect"
  *   ></script>
  */
 (function () {
@@ -38,11 +38,11 @@
 
   var config = {
     trackerId: scriptTag.getAttribute('data-tracker-id') || '',
-    apiUrl: scriptTag.getAttribute('data-api-url') || 'https://api.ailabsaudit.com/v1/collect',
+    apiUrl: scriptTag.getAttribute('data-api-url') || '',
     autoTrack: scriptTag.getAttribute('data-auto-track') !== 'false',
   };
 
-  if (!config.trackerId) return;
+  if (!config.trackerId || !config.apiUrl) return;
 
   // -----------------------------------------------------------------
   // Utility
@@ -53,14 +53,12 @@
   }
 
   function generateSessionId() {
-    // Simple random hex ID, regenerated per page load
     var arr = new Uint8Array(8);
     if (window.crypto && window.crypto.getRandomValues) {
       window.crypto.getRandomValues(arr);
     } else {
-      for (var i = 0; i < arr.length; i++) {
-        arr[i] = Math.floor(Math.random() * 256);
-      }
+      // Non-crypto fallback: unique but not security-critical.
+      return Date.now().toString(36) + '-' + Math.random().toString(36).substr(2, 8);
     }
     var hex = '';
     for (var j = 0; j < arr.length; j++) {
@@ -106,6 +104,25 @@
   // -----------------------------------------------------------------
 
   /**
+   * Sanitize metadata: limit keys and string lengths.
+   * @param {Object} meta Raw metadata.
+   * @returns {Object} Sanitized metadata.
+   */
+  function sanitizeMeta(meta) {
+    var clean = {};
+    var keys = Object.keys(meta).slice(0, 20);
+    for (var i = 0; i < keys.length; i++) {
+      var val = meta[keys[i]];
+      if (typeof val === 'string') {
+        clean[keys[i]] = val.substring(0, 500);
+      } else if (typeof val === 'number' || typeof val === 'boolean') {
+        clean[keys[i]] = val;
+      }
+    }
+    return clean;
+  }
+
+  /**
    * Build a tracking payload.
    *
    * @param {string} event Event type.
@@ -131,7 +148,7 @@
     payload.session_id = sessionId;
 
     if (meta && typeof meta === 'object' && Object.keys(meta).length > 0) {
-      payload.meta = meta;
+      payload.meta = sanitizeMeta(meta);
     }
 
     return payload;

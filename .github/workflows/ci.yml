@@ -2,54 +2,156 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    branches: [main, develop]
   pull_request:
-    branches: [main]
+    branches: [main, develop]
 
 jobs:
-  node-tests:
+  wordpress:
+    name: WordPress (PHP ${{ matrix.php-version }})
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     strategy:
       matrix:
-        node-version: [18, 20, 22]
+        php-version: ['7.4', '8.2']
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: ${{ matrix.node-version }}
-      - name: Node.js collector
-        run: node collectors/node/tests/hmac.test.js
-      - name: Cloudflare Worker collector
-        run: node collectors/cloudflare-worker/tests/hmac.test.js
-      - name: Pixel tag
-        run: node collectors/pixel/tests/tracker.test.js
-      - name: Cross-collector validation (JS)
-        run: node integration-tests/validate-vectors.js
 
-  python-tests:
-    runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        python-version: ['3.8', '3.10', '3.12']
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: ${{ matrix.python-version }}
-      - name: Python collector
-        run: python collectors/python/tests/test_hmac.py -v
-      - name: Cross-collector validation (Python)
-        run: python integration-tests/validate-vectors.py
-
-  php-tests:
-    runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        php-version: ['7.4', '8.1', '8.3']
-    steps:
-      - uses: actions/checkout@v4
-      - uses: shivammathur/setup-php@v2
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
         with:
           php-version: ${{ matrix.php-version }}
-      - name: PHP collector
+          tools: composer, phpcs, phpunit
+
+      - name: Cache Composer dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.composer/cache
+          key: composer-${{ matrix.php-version }}-${{ hashFiles('**/composer.json') }}
+          restore-keys: composer-${{ matrix.php-version }}-
+
+      - name: Install WPCS
+        run: |
+          composer global require --no-interaction \
+            wp-coding-standards/wpcs \
+            dealerdirect/phpcodesniffer-composer-installer
+
+      - name: HMAC tests
+        run: phpunit collectors/wordpress/tests/test-signer.php
+
+      - name: PHPCS (WordPress standard)
+        run: |
+          phpcs --standard=WordPress \
+            --extensions=php \
+            --ignore=tests/ \
+            collectors/wordpress/
+
+  php:
+    name: PHP Generic (PHP ${{ matrix.php-version }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      matrix:
+        php-version: ['7.4', '8.2']
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php-version }}
+
+      - name: HMAC tests
         run: php collectors/php/tests/HmacTest.php
+
+  nodejs:
+    name: Node.js (Node ${{ matrix.node-version }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      matrix:
+        node-version: [18, 20]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+
+      - name: Cache npm dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.npm
+          key: npm-${{ matrix.node-version }}-${{ hashFiles('collectors/node/package.json') }}
+          restore-keys: npm-${{ matrix.node-version }}-
+
+      - name: HMAC tests
+        working-directory: collectors/node
+        run: npm test
+
+  python:
+    name: Python (Python ${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      matrix:
+        python-version: ['3.9', '3.12']
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Cache pip dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: pip-${{ matrix.python-version }}-${{ hashFiles('collectors/python/pyproject.toml') }}
+          restore-keys: pip-${{ matrix.python-version }}-
+
+      - name: Install pytest
+        run: pip install pytest
+
+      - name: HMAC tests
+        working-directory: collectors/python
+        run: python -m pytest tests/ -v
+
+  cloudflare:
+    name: Cloudflare Worker (Node 20)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: HMAC tests
+        working-directory: collectors/cloudflare-worker
+        run: npm test
+
+  integration:
+    name: Integration (cross-language)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    needs: [wordpress, php, nodejs, python, cloudflare]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Cross-language HMAC validation (openssl reference)
+        run: bash integration-tests/test-hmac-vectors.sh

@@ -1,103 +1,136 @@
 # Payload Format Specification
 
-Version: 1.0
+Version: 2.0
 
 ## Overview
 
-All collectors send events as JSON objects to the AI Labs Audit ingestion API. This document defines the canonical payload schema.
+All collectors send events as JSON batches to the AI Labs Audit ingestion API. This document defines the payload schema.
 
-## Schema
+## Batch wrapper
 
-```json
-{
-  "event":      "string   (required) — event type",
-  "timestamp":  "string   (required) — ISO 8601 UTC",
-  "tracker_id": "string   (required) — assigned tracker identifier",
-  "url":        "string   (required) — page URL",
-  "referrer":   "string   (optional) — referrer URL",
-  "user_agent": "string   (optional) — browser User-Agent",
-  "ip":         "string   (optional) — client IP (may be anonymized)",
-  "session_id": "string   (optional) — ephemeral session identifier",
-  "meta":       "object   (optional) — arbitrary key-value metadata"
-}
-```
-
-## Fields
-
-### `event` (required)
-
-Event type identifier. Reserved values:
-
-| Value | Description |
-|-------|-------------|
-| `page_view` | Standard page view |
-| `page_leave` | User navigated away |
-| `cta_click` | Call-to-action click |
-| `form_submit` | Form submission |
-| `custom` | Custom event (use `meta.event_name` for details) |
-
-Custom event names must be lowercase alphanumeric with underscores, max 64 characters.
-
-### `timestamp` (required)
-
-ISO 8601 format in UTC: `2026-03-04T12:00:00Z`.
-
-### `tracker_id` (required)
-
-Tracker identifier assigned by AI Labs Audit, format: `TRK-XXXXX`.
-
-### `url` (required)
-
-Full canonical URL of the tracked page. Must include protocol.
-
-### `referrer` (optional)
-
-The HTTP referrer, if available. Empty string or omitted if none.
-
-### `user_agent` (optional)
-
-Raw `User-Agent` header string.
-
-### `ip` (optional)
-
-Client IP address. Collectors MAY truncate the last octet for privacy (e.g., `192.168.1.0`).
-
-### `session_id` (optional)
-
-An ephemeral identifier to group events within a session. Must NOT be a persistent user identifier. Recommended: random UUID v4, regenerated per session.
-
-### `meta` (optional)
-
-Free-form JSON object for additional data. Examples:
+Every request to `POST /api/v1/tracking/events` sends a batch wrapper containing one or more events:
 
 ```json
 {
-  "duration": 4500,
-  "scroll_depth": 75,
-  "button_id": "signup-hero",
-  "web_vitals": {
-    "lcp": 1200,
-    "fid": 8,
-    "cls": 0.05
-  }
+  "client_id":      "string  (required) — client identifier",
+  "plugin_type":    "string  (required) — collector type: wordpress, php, node, python, cloudflare",
+  "plugin_version": "string  (required) — collector version (e.g. 1.0.0)",
+  "batch_id":       "string  (required) — UUID v4 identifying this batch",
+  "events":         "array   (required) — list of event objects (max 500)"
 }
 ```
+
+### Fields
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `client_id` | string | Yes | Client identifier (e.g. `CLT-001`) |
+| `plugin_type` | string | Yes | Collector type: `wordpress`, `php`, `node`, `python`, `cloudflare` |
+| `plugin_version` | string | Yes | Semantic version of the collector |
+| `batch_id` | string | Yes | UUID v4, unique per batch |
+| `events` | array | Yes | Array of event objects (1–500) |
+
+## Event types
+
+### `bot_crawl`
+
+Detected when an AI bot user-agent is identified on a page request.
+
+```json
+{
+  "type": "bot_crawl",
+  "user_agent": "Mozilla/5.0 (compatible; GPTBot/1.0; +https://openai.com/gptbot)",
+  "url": "/blog/article-1",
+  "timestamp": "2026-03-04T12:00:00+00:00",
+  "status_code": 200,
+  "response_size": 0
+}
+```
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `type` | string | Yes | Always `"bot_crawl"` |
+| `user_agent` | string | Yes | Bot user-agent string (truncated to 500 chars) |
+| `url` | string | Yes | Page URL / request URI (truncated to 2000 chars) |
+| `timestamp` | string | Yes | ISO 8601 UTC (e.g. `2026-03-04T12:00:00+00:00`) |
+| `status_code` | integer | Yes | HTTP response status code |
+| `response_size` | integer | Yes | Response body size in bytes (0 if unknown) |
+
+### `ai_referral`
+
+Detected when a visitor arrives from an AI platform (via HTTP Referer header).
+
+```json
+{
+  "type": "ai_referral",
+  "referrer_domain": "chatgpt.com",
+  "url": "/pricing",
+  "timestamp": "2026-03-04T12:01:00+00:00"
+}
+```
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `type` | string | Yes | Always `"ai_referral"` |
+| `referrer_domain` | string | Yes | Matched AI platform domain |
+| `url` | string | Yes | Page URL / request URI (truncated to 2000 chars) |
+| `timestamp` | string | Yes | ISO 8601 UTC |
+
+## Timestamp format
+
+Event timestamps use ISO 8601 format in UTC, generated with:
+- PHP: `gmdate('c')` — produces `2026-03-04T12:00:00+00:00`
+- Node.js: `new Date().toISOString()` — produces `2026-03-04T12:00:00.000Z`
+- Python: `datetime.now(timezone.utc).isoformat()` — produces `2026-03-04T12:00:00+00:00`
+
+## Privacy
+
+Events **must not** contain:
+- IP addresses
+- Cookies or session identifiers
+- Any personally identifiable information (PII)
+- Browser fingerprints
+
+Only these data points are collected: bot user-agent, AI referrer domain/URL, page URL, timestamp, and HTTP status code.
 
 ## Size limits
 
-- Maximum payload size: **8 KB** (after JSON serialization)
-- Maximum `meta` keys: **20**
-- Maximum string value length in `meta`: **512 characters**
+- Maximum batch size: **500 events**
+- Maximum `user_agent` length: **500 characters**
+- Maximum URL/referrer length: **2000 characters**
+- Maximum serialized payload size: **1 MB**
 
 ## Content-Type
 
 All payloads must be sent as `application/json` with UTF-8 encoding.
 
-## Canonicalization (for HMAC signing)
+## HMAC signing
 
-Before signing, the payload must be serialized with:
-- Keys sorted alphabetically (recursive)
-- No whitespace (`JSON_UNESCAPED_SLASHES`, compact separators)
-- UTF-8 encoding
+The serialized JSON body is signed as-is — no canonicalization, no key sorting. See [hmac-signing.md](hmac-signing.md) for the full signing procedure.
 
-See [hmac-signing.md](hmac-signing.md) for the full signing procedure.
+## Full example
+
+```json
+{
+  "client_id": "CLT-001",
+  "plugin_type": "wordpress",
+  "plugin_version": "1.0.0",
+  "batch_id": "550e8400-e29b-41d4-a716-446655440000",
+  "events": [
+    {
+      "type": "bot_crawl",
+      "user_agent": "Mozilla/5.0 (compatible; GPTBot/1.0; +https://openai.com/gptbot)",
+      "url": "/blog/article-1",
+      "timestamp": "2026-03-04T12:00:00+00:00",
+      "status_code": 200,
+      "response_size": 0
+    },
+    {
+      "type": "ai_referral",
+      "referrer_domain": "chatgpt.com",
+      "url": "/pricing",
+      "timestamp": "2026-03-04T12:01:00+00:00"
+    }
+  ]
+}
+```
