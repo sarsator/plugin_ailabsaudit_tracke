@@ -89,7 +89,17 @@
     "DeepSeekBot",
     "Mistral",
     "Firecrawl",
-    "Jina"
+    "Jina",
+    "Google-Agent",
+    "OpenClaw",
+    "Webzio-GPT",
+    "iaskAI",
+    "Qwantbot",
+    "YandexBot",
+    "NaverBot",
+    "SeznamBot",
+    "Sogou",
+    "Yeti"
   ],
   "ai_referrers": [
     "chatgpt.com",
@@ -121,6 +131,8 @@
     "huggingchat.co",
     "grok.com",
     "getliner.com",
-    "liner.com"
+    "liner.com",
+    "qwant.com",
+    "duckduckgo.com"
   ]
 }

@@ -51,6 +51,8 @@ class Defaults
             'Scrapy', 'newspaper', 'AhrefsBot', 'SemrushBot', 'MJ12bot',
             'DotBot', 'Rogerbot', 'Screaming Frog', 'ISSCyberRiskCrawler',
             'Sidetrade', 'Owler', 'DeepSeekBot', 'Mistral', 'Firecrawl', 'Jina',
+            'Google-Agent', 'OpenClaw', 'Webzio-GPT', 'iaskAI',
+            'Qwantbot', 'YandexBot', 'NaverBot', 'SeznamBot', 'Sogou', 'Yeti',
         ];
     }
 
@@ -70,6 +72,7 @@ class Defaults
             'brave.com', 'search.brave.com',
             'character.ai', 'huggingface.co', 'huggingchat.co',
             'grok.com', 'getliner.com', 'liner.com',
+            'qwant.com', 'duckduckgo.com',
         ];
     }
 }

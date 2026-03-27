@@ -315,6 +315,16 @@ class Ailabsaudit_Cache {
 			'Mistral',     // Mistral.
 			'Firecrawl',   // Firecrawl.
 			'Jina',        // Jina.
+			'Google-Agent',  // Google AI agent (March 2026).
+			'OpenClaw',      // OpenClaw agentic AI.
+			'Webzio-GPT',   // Webz.io GPT crawler.
+			'iaskAI',        // iAsk AI.
+			'Qwantbot',      // Qwant (EU).
+			'YandexBot',     // Yandex.
+			'NaverBot',      // Naver (Korea).
+			'SeznamBot',     // Seznam (Czech).
+			'Sogou',         // Sogou (China).
+			'Yeti',          // Naver Yeti.
 		);
 	}
 
@@ -355,6 +365,8 @@ class Ailabsaudit_Cache {
 			'grok.com',
 			'getliner.com',
 			'liner.com',
+			'qwant.com',
+			'duckduckgo.com',
 		);
 	}
 }
