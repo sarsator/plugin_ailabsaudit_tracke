@@ -44,8 +44,8 @@ func main() {
 	// Initialize list cache (refreshes from API every 24h).
 	initListCache(cfg)
 
-	sender := newSender(cfg)
-	buffer := newEventBuffer(cfg.BufferSize, cfg.FlushInterval, cfg.FlushDebounce, sender.send)
+	snd := newSender(cfg)
+	buffer := newEventBuffer(cfg.BufferSize, cfg.FlushInterval, cfg.FlushDebounce, cfg.MaxRetries, snd.send)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -68,19 +68,35 @@ func main() {
 	// Stats counters.
 	var linesProcessed, eventsMatched uint64
 
-	// Stats reporter.
+	// Stats reporter + update checker (every 5 min).
 	go func() {
 		ticker := time.NewTicker(5 * time.Minute)
 		defer ticker.Stop()
+		updateCheck := time.NewTicker(24 * time.Hour)
+		defer updateCheck.Stop()
+
+		// Check for update on startup (after 30s delay).
+		time.AfterFunc(30*time.Second, func() {
+			if newVer := snd.checkUpdate(); newVer != "" {
+				log.Printf("Update available: v%s → v%s. Run install.sh to update.", version, newVer)
+			}
+		})
+
 		for {
 			select {
 			case <-ctx.Done():
 				return
 			case <-ticker.C:
-				log.Printf("Stats: %d lines parsed, %d events matched, %d buffered",
+				dropped, flushErr := buffer.stats()
+				log.Printf("Stats: lines=%d matched=%d buffered=%d dropped=%d flush_errors=%d",
 					atomic.LoadUint64(&linesProcessed),
 					atomic.LoadUint64(&eventsMatched),
-					buffer.size())
+					buffer.size(),
+					dropped, flushErr)
+			case <-updateCheck.C:
+				if newVer := snd.checkUpdate(); newVer != "" {
+					log.Printf("Update available: v%s → v%s. Run install.sh to update.", version, newVer)
+				}
 			}
 		}
 	}()
@@ -103,11 +119,35 @@ func main() {
 
 	if err != nil && ctx.Err() == nil {
 		log.Printf("Tail error: %v", err)
+		// Report fatal error to API.
+		snd.sendDiagnostic("tail_error", err.Error())
 	}
 
-	// Flush remaining.
+	// Flush remaining with timeout.
 	log.Println("Flushing remaining events...")
-	buffer.stop()
-	log.Printf("Final: %d lines, %d events", atomic.LoadUint64(&linesProcessed), atomic.LoadUint64(&eventsMatched))
+	shutdownDone := make(chan struct{})
+	go func() {
+		buffer.stop()
+		close(shutdownDone)
+	}()
+
+	select {
+	case <-shutdownDone:
+	case <-time.After(15 * time.Second):
+		log.Println("Shutdown timeout — some events may be lost")
+		snd.sendDiagnostic("shutdown_timeout", "buffer flush timed out after 15s")
+	}
+
+	// Report final stats.
+	dropped, flushErr := buffer.stats()
+	log.Printf("Final: lines=%d events=%d dropped=%d errors=%d",
+		atomic.LoadUint64(&linesProcessed),
+		atomic.LoadUint64(&eventsMatched),
+		dropped, flushErr)
+
+	if dropped > 0 {
+		snd.sendDiagnostic("events_dropped", fmt.Sprintf("%d events dropped during session", dropped))
+	}
+
 	log.Println("Agent stopped.")
 }

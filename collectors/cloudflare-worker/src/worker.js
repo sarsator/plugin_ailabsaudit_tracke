@@ -192,18 +192,26 @@ export default {
       env.CLIENT_ID;
 
     if (shouldTrack) {
-      // Fetch dynamic lists from API (cached via CF Cache API).
-      const [botSigs, aiRefs] = await Promise.all([
+      // Fetch dynamic lists — use allSettled so one timeout doesn't block the other.
+      const [botResult, refResult] = await Promise.allSettled([
         getBotSignatures(env, sign),
         getAiReferrers(env, sign),
       ]);
+      const botSigs = botResult.status === 'fulfilled' ? botResult.value : BOT_SIGNATURES;
+      const aiRefs = refResult.status === 'fulfilled' ? refResult.value : AI_REFERRERS;
 
       const event = detectEvent(request, botSigs, aiRefs);
       if (event) {
         ctx.waitUntil(
-          sendEvents([event], env).catch((err) => {
-            console.error('AilabsAudit: send failed —', err.message);
-          }),
+          sendEvents([event], env)
+            .then((resp) => {
+              if (!resp.ok && resp.status !== 429) {
+                console.error(`AilabsAudit: API returned HTTP ${resp.status}`);
+              }
+            })
+            .catch((err) => {
+              console.error('AilabsAudit: send failed —', err.message);
+            }),
         );
       }
     }

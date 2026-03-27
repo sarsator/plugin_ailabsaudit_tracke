@@ -4,6 +4,8 @@ import (
 	"bufio"
 	"context"
 	"fmt"
+	"io"
+	"log"
 	"os"
 	"time"
 )
@@ -18,7 +20,7 @@ func tailFile(ctx context.Context, path string, onLine func(string)) error {
 
 		err := tailFileOnce(ctx, path, onLine)
 		if err != nil && ctx.Err() == nil {
-			// File may have been rotated or deleted. Wait and retry.
+			log.Printf("Tail: %v, retrying in 2s...", err)
 			select {
 			case <-ctx.Done():
 				return nil
@@ -37,43 +39,41 @@ func tailFileOnce(ctx context.Context, path string, onLine func(string)) error {
 	}
 	defer f.Close()
 
-	// Get original inode.
+	// Get original inode for rotation detection.
 	origInfo, err := f.Stat()
 	if err != nil {
 		return fmt.Errorf("stat %s: %w", path, err)
 	}
 
 	// Seek to end — only process new lines.
-	f.Seek(0, 2)
+	if _, err := f.Seek(0, io.SeekEnd); err != nil {
+		return fmt.Errorf("seek %s: %w", path, err)
+	}
 
-	scanner := bufio.NewScanner(f)
-	// 64 KB max line length (access logs can be long).
-	scanner.Buffer(make([]byte, 0, 64*1024), 64*1024)
+	// Track file position to avoid re-reading.
+	pos, _ := f.Seek(0, io.SeekCurrent)
 
 	pollInterval := 200 * time.Millisecond
 	rotationCheck := time.NewTicker(2 * time.Second)
 	defer rotationCheck.Stop()
 
 	for {
-		select {
-		case <-ctx.Done():
+		if ctx.Err() != nil {
 			return nil
-		default:
 		}
 
-		if scanner.Scan() {
-			line := scanner.Text()
-			if len(line) > 0 {
+		// Read all available new lines from current position.
+		newLines := readNewLines(f, pos)
+		if len(newLines) > 0 {
+			for _, line := range newLines {
 				onLine(line)
 			}
+			// Update position after successful read.
+			pos, _ = f.Seek(0, io.SeekCurrent)
 			continue
 		}
 
-		// No more data. Check for rotation or wait.
-		if err := scanner.Err(); err != nil {
-			return fmt.Errorf("scanner error: %w", err)
-		}
-
+		// No new data. Wait for new data or rotation.
 		select {
 		case <-ctx.Done():
 			return nil
@@ -81,17 +81,39 @@ func tailFileOnce(ctx context.Context, path string, onLine func(string)) error {
 			// Check if inode changed (log rotated).
 			newInfo, err := os.Stat(path)
 			if err != nil {
-				// File removed, will be recreated.
 				return fmt.Errorf("file gone: %w", err)
 			}
 			if !os.SameFile(origInfo, newInfo) {
-				// File rotated — reopen.
-				return nil
+				return nil // Rotated, reopen.
+			}
+			// Check if file was truncated (some rotation tools do this).
+			currentSize, _ := f.Seek(0, io.SeekEnd)
+			if currentSize < pos {
+				log.Printf("Tail: file truncated, resetting to beginning")
+				pos = 0
+				f.Seek(0, io.SeekStart)
+			} else {
+				f.Seek(pos, io.SeekStart)
 			}
 		case <-time.After(pollInterval):
-			// Reset scanner to pick up new data appended to file.
-			scanner = bufio.NewScanner(f)
-			scanner.Buffer(make([]byte, 0, 64*1024), 64*1024)
+			// Just loop back to try reading.
 		}
 	}
+}
+
+// readNewLines reads all complete lines from the current file position.
+func readNewLines(f *os.File, fromPos int64) []string {
+	f.Seek(fromPos, io.SeekStart)
+	scanner := bufio.NewScanner(f)
+	// 64 KB max line (access logs can be long).
+	scanner.Buffer(make([]byte, 0, 64*1024), 64*1024)
+
+	var lines []string
+	for scanner.Scan() {
+		line := scanner.Text()
+		if len(line) > 0 {
+			lines = append(lines, line)
+		}
+	}
+	return lines
 }

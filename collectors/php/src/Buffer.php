@@ -51,8 +51,11 @@ class Buffer
         $this->events[] = $event;
         $this->dirty = true;
 
+        // Cap: drop OLDEST events (keep newest).
         if (count($this->events) > self::MAX_SIZE) {
-            $this->events = array_slice($this->events, -self::MAX_SIZE);
+            $dropped = count($this->events) - self::MAX_SIZE;
+            $this->events = array_slice($this->events, $dropped);
+            error_log("AilabsAudit: buffer overflow, dropped {$dropped} oldest events");
         }
 
         $this->registerShutdown();

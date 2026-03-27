@@ -241,7 +241,7 @@ func TestBufferCap(t *testing.T) {
 
 func TestBufferFlush(t *testing.T) {
 	var sent int
-	buf := newEventBuffer(500, 5*60*1e9, 0, func(events []*event) sendResult {
+	buf := newEventBuffer(500, 5*60*1e9, 0, 3, func(events []*event) sendResult {
 		sent = len(events)
 		return sendResult{Success: true, StatusCode: 202}
 	})
@@ -253,7 +253,7 @@ func TestBufferFlush(t *testing.T) {
 
 func TestBufferStop(t *testing.T) {
 	var sent int
-	buf := newEventBuffer(500, 5*60*1e9, 0, func(events []*event) sendResult {
+	buf := newEventBuffer(500, 5*60*1e9, 0, 3, func(events []*event) sendResult {
 		sent = len(events)
 		return sendResult{Success: true, StatusCode: 202}
 	})
@@ -352,7 +352,7 @@ func initTestCache() {
 }
 
 func newTestBuffer() *eventBuffer {
-	return newEventBuffer(500, 5*60*1e9, 30*1e9, func(events []*event) sendResult {
+	return newEventBuffer(500, 5*60*1e9, 30*1e9, 3, func(events []*event) sendResult {
 		return sendResult{Success: true, StatusCode: 202}
 	})
 }
