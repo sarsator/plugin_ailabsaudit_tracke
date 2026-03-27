@@ -11,23 +11,26 @@
 #     --api-url "https://ailabsaudit.com/api/v1"
 #
 # What this script does:
-#   1. Detects your web server (Nginx, Apache, LiteSpeed, Caddy)
-#   2. Detects your access log path
-#   3. Installs the agent to /opt/ailabsaudit/
-#   4. Creates config at /etc/ailabsaudit/agent.conf
-#   5. Creates a systemd service that starts on boot
-#   6. Starts the agent
+#   1. Detects your CPU architecture (amd64/arm64)
+#   2. Downloads the pre-compiled Go binary from GitHub Releases
+#   3. Detects your web server (Nginx, Apache, LiteSpeed, Caddy)
+#   4. Detects your access log path
+#   5. Creates config at /etc/ailabsaudit/agent.conf
+#   6. Creates a systemd service that starts on boot
+#   7. Starts the agent
 #
-# Requirements: Linux, Python 3.6+, systemd
+# Requirements: Linux, systemd — no runtime needed (static binary)
 # ============================================================================
 
 set -euo pipefail
 
-REPO_URL="https://raw.githubusercontent.com/sarsator/plugin_ailabsaudit_tracke/main/collectors/log-agent"
+GITHUB_REPO="sarsator/plugin_ailabsaudit_tracke"
+RELEASE_TAG="latest"
 INSTALL_DIR="/opt/ailabsaudit"
 CONFIG_DIR="/etc/ailabsaudit"
 LOG_DIR="/var/log/ailabsaudit"
 SERVICE_NAME="ailabsaudit-agent"
+BINARY_NAME="ailabsaudit-agent"
 
 # Colors.
 RED='\033[0;31m'
@@ -45,6 +48,17 @@ ok()    { echo -e "${GREEN}[OK]${NC}    $1"; }
 warn()  { echo -e "${YELLOW}[WARN]${NC}  $1"; }
 error() { echo -e "${RED}[ERROR]${NC} $1" >&2; }
 die()   { error "$1"; exit 1; }
+
+download() {
+    local url="$1" dest="$2"
+    if command -v curl &>/dev/null; then
+        curl -fsSL "$url" -o "$dest"
+    elif command -v wget &>/dev/null; then
+        wget -qO "$dest" "$url"
+    else
+        die "curl or wget is required."
+    fi
+}
 
 # -----------------------------------------------------------------
 # Parse arguments
@@ -89,23 +103,23 @@ echo ""
 [[ -n "$CLIENT_ID" ]]   || die "Missing --client-id. Get it at https://ailabsaudit.com"
 [[ -n "$API_URL" ]]     || die "Missing --api-url. Usually: https://ailabsaudit.com/api/v1"
 
-# Check Python 3.
-PYTHON=""
-for cmd in python3 python; do
-    if command -v "$cmd" &>/dev/null; then
-        ver=$("$cmd" -c "import sys; print(sys.version_info.major)" 2>/dev/null)
-        if [[ "$ver" == "3" ]]; then
-            PYTHON="$cmd"
-            break
-        fi
-    fi
-done
-[[ -n "$PYTHON" ]] || die "Python 3.6+ is required but not found. Install it: apt install python3 / yum install python3"
-ok "Python 3 found: $($PYTHON --version)"
-
 # Check systemd.
 command -v systemctl &>/dev/null || die "systemd is required but not found."
 ok "systemd found"
+
+# -----------------------------------------------------------------
+# Detect architecture
+# -----------------------------------------------------------------
+
+info "Detecting CPU architecture..."
+
+ARCH=$(uname -m)
+case "$ARCH" in
+    x86_64|amd64)   ARCH_SUFFIX="linux-amd64" ;;
+    aarch64|arm64)   ARCH_SUFFIX="linux-arm64" ;;
+    *) die "Unsupported architecture: $ARCH. Supported: x86_64, aarch64." ;;
+esac
+ok "Architecture: $ARCH ($ARCH_SUFFIX)"
 
 # -----------------------------------------------------------------
 # Detect web server and log path
@@ -175,29 +189,29 @@ if getent group adm &>/dev/null; then
 fi
 
 # -----------------------------------------------------------------
-# Install agent
+# Download binary from GitHub Releases
 # -----------------------------------------------------------------
 
-info "Installing agent to ${INSTALL_DIR}..."
+info "Downloading agent binary (${ARCH_SUFFIX})..."
 
 mkdir -p "$INSTALL_DIR"
 mkdir -p "$CONFIG_DIR"
 mkdir -p "$LOG_DIR"
 
-# Download agent from GitHub.
-if command -v curl &>/dev/null; then
-    curl -sL "${REPO_URL}/ailabsaudit-agent.py" -o "${INSTALL_DIR}/ailabsaudit-agent.py"
-elif command -v wget &>/dev/null; then
-    wget -qO "${INSTALL_DIR}/ailabsaudit-agent.py" "${REPO_URL}/ailabsaudit-agent.py"
+BINARY_URL="https://github.com/${GITHUB_REPO}/releases/${RELEASE_TAG}/download/${BINARY_NAME}-${ARCH_SUFFIX}"
+download "$BINARY_URL" "${INSTALL_DIR}/${BINARY_NAME}"
+chmod 755 "${INSTALL_DIR}/${BINARY_NAME}"
+
+# Verify it runs.
+if "${INSTALL_DIR}/${BINARY_NAME}" --version &>/dev/null; then
+    AGENT_VERSION=$("${INSTALL_DIR}/${BINARY_NAME}" --version 2>&1)
+    ok "Agent binary installed: ${AGENT_VERSION}"
 else
-    die "curl or wget is required."
+    die "Downloaded binary failed to execute. Check architecture or download."
 fi
 
-chmod 755 "${INSTALL_DIR}/ailabsaudit-agent.py"
-ok "Agent installed"
-
 # -----------------------------------------------------------------
-# Write config (credentials stay local, never on GitHub)
+# Write config (credentials stay local, NEVER on GitHub)
 # -----------------------------------------------------------------
 
 info "Writing config to ${CONFIG_DIR}/agent.conf..."
@@ -230,15 +244,33 @@ chown -R ailabsaudit:ailabsaudit "$LOG_DIR"
 
 info "Installing systemd service..."
 
-# Download service file from GitHub.
-if command -v curl &>/dev/null; then
-    curl -sL "${REPO_URL}/ailabsaudit-agent.service" -o "/etc/systemd/system/${SERVICE_NAME}.service"
-elif command -v wget &>/dev/null; then
-    wget -qO "/etc/systemd/system/${SERVICE_NAME}.service" "${REPO_URL}/ailabsaudit-agent.service"
-fi
+cat > "/etc/systemd/system/${SERVICE_NAME}.service" << 'SERVICE'
+[Unit]
+Description=AI Labs Audit Log Agent — AI bot crawl and referral tracker
+Documentation=https://github.com/sarsator/plugin_ailabsaudit_tracke
+After=network-online.target
+Wants=network-online.target
 
-# Update python path in service file.
-sed -i "s|/usr/bin/python3|$(which "$PYTHON")|g" "/etc/systemd/system/${SERVICE_NAME}.service"
+[Service]
+Type=simple
+ExecStart=/opt/ailabsaudit/ailabsaudit-agent --config /etc/ailabsaudit/agent.conf
+Restart=always
+RestartSec=10
+User=ailabsaudit
+Group=ailabsaudit
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+ReadOnlyPaths=/
+ReadWritePaths=/var/log/ailabsaudit
+SupplementaryGroups=adm
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=ailabsaudit-agent
+
+[Install]
+WantedBy=multi-user.target
+SERVICE
 
 systemctl daemon-reload
 systemctl enable "$SERVICE_NAME"
@@ -267,7 +299,7 @@ echo "======================================"
 echo -e "  ${GREEN}Installation complete!${NC}"
 echo "======================================"
 echo ""
-echo "  Agent:   ${INSTALL_DIR}/ailabsaudit-agent.py"
+echo "  Agent:   ${INSTALL_DIR}/${BINARY_NAME}"
 echo "  Config:  ${CONFIG_DIR}/agent.conf"
 echo "  Service: ${SERVICE_NAME}"
 echo "  Logs:    journalctl -u ${SERVICE_NAME} -f"
@@ -280,7 +312,7 @@ echo "    sudo systemctl restart ${SERVICE_NAME}   # Restart"
 echo "    sudo systemctl stop ${SERVICE_NAME}      # Stop"
 echo ""
 echo "  To uninstall:"
-echo "    curl -sL ${REPO_URL}/uninstall.sh | sudo bash"
+echo "    curl -sL https://raw.githubusercontent.com/${GITHUB_REPO}/main/collectors/log-agent/uninstall.sh | sudo bash"
 echo ""
 echo "  Dashboard: https://ailabsaudit.com"
 echo ""
