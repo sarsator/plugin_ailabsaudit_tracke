@@ -4,7 +4,7 @@
 
 ## What is this?
 
-A monorepo of lightweight collectors that detect AI bot crawls (GPTBot, ClaudeBot, PerplexityBot, DeepSeekBot, and 90+ others) and AI referral traffic (ChatGPT, Perplexity, Claude, Gemini, Grok, etc.) on your website. Events are signed with HMAC-SHA256 and sent in batches to the ingestion API.
+A monorepo of lightweight collectors that detect AI bot crawls (GPTBot, ClaudeBot, PerplexityBot, DeepSeekBot, Google-Agent, and 100+ others) and AI referral traffic (ChatGPT, Perplexity, Claude, Gemini, Grok, etc.) on your website. Events are signed with HMAC-SHA256 and sent in batches to the ingestion API.
 
 **Zero personal data collected** — no IP, no cookies, no fingerprinting.
 
@@ -12,11 +12,11 @@ A monorepo of lightweight collectors that detect AI bot crawls (GPTBot, ClaudeBo
 
 | Collector | Language | Detection | Buffer | API Refresh | Install |
 |-----------|----------|-----------|--------|-------------|---------|
-| [Log Agent](collectors/log-agent/) | Go | 90 bots, 30 referrers | In-memory, 5 min flush | 24h TTL, ETag | **One command** |
-| [WordPress](collectors/wordpress/) | PHP | 90 bots, 30 referrers | WP transients, WP-Cron | 24h TTL, ETag | Upload ZIP |
-| [PHP Generic](collectors/php/) | PHP | 90 bots, 30 referrers | File JSON + LOCK_EX | 24h TTL, ETag | `composer require` |
-| [Python](collectors/python/) | Python | 90 bots, 30 referrers | Thread-safe, 5 min flush | 24h TTL, ETag | `pip install` |
-| [Cloudflare Worker](collectors/cloudflare-worker/) | JS | 90 bots, 30 referrers | Per-request (waitUntil) | CF Cache API | `wrangler deploy` |
+| [Log Agent](collectors/log-agent/) | Go | 100 bots, 32 referrers | In-memory, 5 min flush | 24h TTL, ETag | **One command** |
+| [WordPress](collectors/wordpress/) | PHP | 100 bots, 32 referrers | WP transients, WP-Cron | 24h TTL, ETag | Upload ZIP |
+| [PHP Generic](collectors/php/) | PHP | 100 bots, 32 referrers | File JSON + LOCK_EX | 24h TTL, ETag | `composer require` |
+| [Python](collectors/python/) | Python | 100 bots, 32 referrers | Thread-safe, 5 min flush | 24h TTL, ETag | `pip install` |
+| [Cloudflare Worker](collectors/cloudflare-worker/) | JS | 100 bots, 32 referrers | Per-request (waitUntil) | CF Cache API | `wrangler deploy` |
 
 ## Quick start — Log Agent (any Linux server)
 
@@ -79,9 +79,9 @@ Detection is **opt-in** (`enableDetection: false` by default) on Python and PHP 
 
 ## What is detected
 
-**90 bot signatures**: GPTBot, ChatGPT-User, ClaudeBot, Claude-Web, PerplexityBot, Google-Extended, GoogleOther, Googlebot, bingbot, CopilotBot, Bytespider, GrokBot, DeepSeekBot, Amazonbot, NovaAct, Firecrawl, Jina, and 70+ more.
+**100 bot signatures**: GPTBot, ChatGPT-User, ClaudeBot, Claude-Web, PerplexityBot, Google-Extended, Google-Agent, Googlebot, bingbot, CopilotBot, Bytespider, GrokBot, DeepSeekBot, Amazonbot, NovaAct, Firecrawl, Jina, YandexBot, Qwantbot, and 80+ more.
 
-**30 AI referrer domains**: chatgpt.com, claude.ai, perplexity.ai, gemini.google.com, copilot.microsoft.com, grok.x.ai, deepseek.com, meta.ai, poe.com, and 20+ more.
+**32 AI referrer domains**: chatgpt.com, claude.ai, perplexity.ai, gemini.google.com, copilot.microsoft.com, grok.x.ai, deepseek.com, meta.ai, poe.com, qwant.com, duckduckgo.com, and 20+ more.
 
 All files are detected including `/robots.txt`, `/llms.txt`, `/llms-full.txt` — the agent reads raw access logs, so every HTTP request from a matched bot is captured regardless of file type.
 
@@ -100,9 +100,12 @@ No IP addresses, cookies, session identifiers, or PII are collected. Only bot us
 
 ## Security
 
-- HMAC-SHA256 signed payloads on all server-side collectors
+- HMAC-SHA256 signed payloads on all server-side collectors (4 required headers: X-API-Key, X-Timestamp, X-Nonce, X-Signature)
 - TLS 1.2 minimum enforced (Go agent, Python SSL context)
+- Exponential backoff on HTTP 429 (rate limiting)
+- Config validation with strict bounds (rejects absurd values, enforces HTTPS)
 - Log Agent: systemd hardened (NoNewPrivileges, ProtectSystem=strict, ProtectHome)
+- Log Agent: diagnostic reporting to API on errors, update check (read-only, no auto-download)
 - Config file permissions 640 (credentials never on GitHub)
 - WordPress: TOCTOU-safe buffer lock, SSRF protection, CSRF nonce, rate limiting
 
