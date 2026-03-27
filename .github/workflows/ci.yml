@@ -7,6 +7,30 @@ on:
     branches: [main, develop]
 
 jobs:
+  log-agent:
+    name: Log Agent (Go)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+
+      - name: Tests (with race detector)
+        working-directory: collectors/log-agent
+        run: go test -v -race ./...
+
+      - name: Build (linux/amd64)
+        working-directory: collectors/log-agent
+        run: CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags="-s -w" -o /dev/null .
+
+      - name: Build (linux/arm64)
+        working-directory: collectors/log-agent
+        run: CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -ldflags="-s -w" -o /dev/null .
+
   wordpress:
     name: WordPress (PHP ${{ matrix.php-version }})
     runs-on: ubuntu-latest
@@ -64,31 +88,11 @@ jobs:
       - name: HMAC tests
         run: php collectors/php/tests/HmacTest.php
 
-  nodejs:
-    name: Node.js (Node ${{ matrix.node-version }})
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    strategy:
-      matrix:
-        node-version: [18, 20]
-    steps:
-      - uses: actions/checkout@v4
+      - name: Detection tests
+        run: php collectors/php/tests/DetectionTest.php
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: ${{ matrix.node-version }}
-
-      - name: Cache npm dependencies
-        uses: actions/cache@v4
-        with:
-          path: ~/.npm
-          key: npm-${{ matrix.node-version }}-${{ hashFiles('collectors/node/package.json') }}
-          restore-keys: npm-${{ matrix.node-version }}-
-
-      - name: HMAC tests
-        working-directory: collectors/node
-        run: npm test
+      - name: Buffer tests
+        run: php collectors/php/tests/BufferTest.php
 
   python:
     name: Python (Python ${{ matrix.python-version }})
@@ -132,14 +136,16 @@ jobs:
           node-version: 20
 
       - name: HMAC tests
-        working-directory: collectors/cloudflare-worker
-        run: npm test
+        run: node collectors/cloudflare-worker/tests/hmac.test.js
+
+      - name: Detection tests
+        run: node collectors/cloudflare-worker/tests/detection.test.js
 
   integration:
-    name: Integration (cross-language)
+    name: Integration (cross-collector)
     runs-on: ubuntu-latest
     timeout-minutes: 10
-    needs: [wordpress, php, nodejs, python, cloudflare]
+    needs: [log-agent, wordpress, php, python, cloudflare]
     steps:
       - uses: actions/checkout@v4
 
@@ -155,3 +161,9 @@ jobs:
 
       - name: Cross-language HMAC validation (openssl reference)
         run: bash integration-tests/test-hmac-vectors.sh
+
+      - name: HMAC vector validation
+        run: node integration-tests/validate-vectors.js
+
+      - name: Cross-collector list validation
+        run: node integration-tests/validate-lists.js
