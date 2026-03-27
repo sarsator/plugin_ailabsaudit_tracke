@@ -133,6 +133,7 @@ func (s *sender) sendDiagnostic(errType, errMsg string) {
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("X-API-Key", s.cfg.APIKey)
 	req.Header.Set("X-Timestamp", timestamp)
+	req.Header.Set("X-Nonce", uuid4())
 	req.Header.Set("X-Signature", sig)
 	req.Header.Set("User-Agent", "AilabsauditTracker/"+version+" LogAgent-Go")
 
@@ -141,7 +142,7 @@ func (s *sender) sendDiagnostic(errType, errMsg string) {
 		return
 	}
 	defer resp.Body.Close()
-	io.Copy(io.Discard, resp.Body)
+	_, _ = io.Copy(io.Discard, resp.Body)
 }
 
 // checkUpdate checks if a newer version is available from the API.
@@ -161,6 +162,7 @@ func (s *sender) checkUpdate() string {
 
 	req.Header.Set("X-API-Key", s.cfg.APIKey)
 	req.Header.Set("X-Timestamp", timestamp)
+	req.Header.Set("X-Nonce", uuid4())
 	req.Header.Set("X-Signature", sig)
 	req.Header.Set("User-Agent", "AilabsauditTracker/"+version+" LogAgent-Go")
 
