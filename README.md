@@ -15,10 +15,8 @@ A monorepo of lightweight collectors that detect AI bot crawls (GPTBot, ClaudeBo
 | [Log Agent](collectors/log-agent/) | Go | 90 bots, 30 referrers | In-memory, 5 min flush | 24h TTL, ETag | **One command** |
 | [WordPress](collectors/wordpress/) | PHP | 90 bots, 30 referrers | WP transients, WP-Cron | 24h TTL, ETag | Upload ZIP |
 | [PHP Generic](collectors/php/) | PHP | 90 bots, 30 referrers | File JSON + LOCK_EX | 24h TTL, ETag | `composer require` |
-| [Node.js](collectors/node/) | JS | 90 bots, 30 referrers | In-memory, 5 min flush | 24h TTL, ETag | `npm install` |
 | [Python](collectors/python/) | Python | 90 bots, 30 referrers | Thread-safe, 5 min flush | 24h TTL, ETag | `pip install` |
 | [Cloudflare Worker](collectors/cloudflare-worker/) | JS | 90 bots, 30 referrers | Per-request (waitUntil) | CF Cache API | `wrangler deploy` |
-| [Pixel Tag](collectors/pixel/) | JS | Referrals only | N/A | N/A | Copy/paste |
 
 ## Quick start — Log Agent (any Linux server)
 
@@ -48,14 +46,6 @@ Get your credentials at **[ailabsaudit.com](https://ailabsaudit.com)** → Dashb
 ### WordPress
 Upload the plugin ZIP in admin, enter credentials in Settings → AI Labs Audit, click Test Connection.
 
-### Node.js (Express middleware)
-```js
-const { AilabsTracker, createMiddleware } = require('@ailabsaudit/tracker-node');
-const tracker = new AilabsTracker({ apiKey, apiSecret, clientId, apiUrl, enableDetection: true });
-app.use(createMiddleware(tracker));
-process.on('SIGTERM', () => tracker.shutdown());
-```
-
 ### Python (WSGI middleware)
 ```python
 from ailabsaudit_tracker import AilabsTracker, WsgiMiddleware
@@ -74,12 +64,6 @@ $tracker->detect();  // Call at the top of your front controller
 ### Cloudflare Worker
 Configure secrets via `wrangler secret put`, deploy with `wrangler deploy`. Lists refresh automatically via CF Cache API.
 
-### Pixel Tag (client-side)
-```html
-<script src="/path/to/tracker.js" data-tracker-id="YOUR_ID" data-api-url="https://ailabsaudit.com/api/v1/collect"></script>
-```
-> **Important**: AI bots do not execute JavaScript. The pixel detects AI referral traffic from real users only (someone clicking a link from ChatGPT/Claude/etc.), not bot crawls. Use a server-side collector for full detection.
-
 ## Configuration
 
 All server-side collectors require:
@@ -91,7 +75,7 @@ All server-side collectors require:
 | `CLIENT_ID` | Your client identifier |
 | `API_URL` | API base URL (provided in your dashboard) |
 
-Detection is **opt-in** (`enableDetection: false` by default) on Node.js, Python, and PHP Generic to preserve backward compatibility. The Log Agent and WordPress plugin have detection enabled by default.
+Detection is **opt-in** (`enableDetection: false` by default) on Python and PHP Generic to preserve backward compatibility. The Log Agent and WordPress plugin have detection enabled by default.
 
 ## What is detected
 
@@ -117,7 +101,7 @@ No IP addresses, cookies, session identifiers, or PII are collected. Only bot us
 ## Security
 
 - HMAC-SHA256 signed payloads on all server-side collectors
-- TLS 1.2 minimum enforced (Go agent, Node.js HTTPS-only, Python SSL context)
+- TLS 1.2 minimum enforced (Go agent, Python SSL context)
 - Log Agent: systemd hardened (NoNewPrivileges, ProtectSystem=strict, ProtectHome)
 - Config file permissions 640 (credentials never on GitHub)
 - WordPress: TOCTOU-safe buffer lock, SSRF protection, CSRF nonce, rate limiting
@@ -127,11 +111,6 @@ No IP addresses, cookies, session identifiers, or PII are collected. Only bot us
 ```bash
 # Log Agent (Go)
 cd collectors/log-agent && go test -v -race ./...
-
-# Node.js
-node collectors/node/tests/hmac.test.js
-node collectors/node/tests/detection.test.js
-node collectors/node/tests/buffer.test.js
 
 # Python
 python3 collectors/python/tests/test_hmac.py -v

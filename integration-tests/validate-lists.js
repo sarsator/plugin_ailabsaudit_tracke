@@ -3,7 +3,7 @@
 /**
  * Cross-collector list validation.
  *
- * Verifies that all 5 collectors have identical bot signatures
+ * Verifies that all collectors have identical bot signatures
  * and AI referrer lists matching the canonical spec/default-lists.json.
  *
  * Run: node integration-tests/validate-lists.js
@@ -37,21 +37,23 @@ const canonicalRefs = spec.ai_referrers.slice().sort();
 console.log(`\nCanonical: ${canonicalBots.length} bots, ${canonicalRefs.length} referrers\n`);
 
 // -----------------------------------------------------------------
-// Node.js
+// Go Log Agent (parse Go slice from defaults.go)
 // -----------------------------------------------------------------
-console.log('--- Node.js ---');
-const nodeDefaults = require('../collectors/node/src/defaults');
-const nodeBots = nodeDefaults.BOT_SIGNATURES.slice().sort();
-const nodeRefs = nodeDefaults.AI_REFERRERS.slice().sort();
+console.log('--- Go Log Agent ---');
+const goDefaultsPath = path.resolve(__dirname, '..', 'collectors', 'log-agent', 'defaults.go');
+const goContent = fs.readFileSync(goDefaultsPath, 'utf8');
 
-assert('Node bots count', nodeBots.length === canonicalBots.length,
-  `expected ${canonicalBots.length}, got ${nodeBots.length}`);
-assert('Node bots match', JSON.stringify(nodeBots) === JSON.stringify(canonicalBots),
-  findDiff(canonicalBots, nodeBots));
-assert('Node refs count', nodeRefs.length === canonicalRefs.length,
-  `expected ${canonicalRefs.length}, got ${nodeRefs.length}`);
-assert('Node refs match', JSON.stringify(nodeRefs) === JSON.stringify(canonicalRefs),
-  findDiff(canonicalRefs, nodeRefs));
+const goBots = extractGoSlice(goContent, 'botSignatures');
+const goRefs = extractGoSlice(goContent, 'aiReferrers');
+
+assert('Go bots count', goBots.length === canonicalBots.length,
+  `expected ${canonicalBots.length}, got ${goBots.length}`);
+assert('Go bots match', JSON.stringify(goBots.sort()) === JSON.stringify(canonicalBots),
+  findDiff(canonicalBots, goBots.sort()));
+assert('Go refs count', goRefs.length === canonicalRefs.length,
+  `expected ${canonicalRefs.length}, got ${goRefs.length}`);
+assert('Go refs match', JSON.stringify(goRefs.sort()) === JSON.stringify(canonicalRefs),
+  findDiff(canonicalRefs, goRefs.sort()));
 
 // -----------------------------------------------------------------
 // Cloudflare Worker (read file as text, parse export)
@@ -60,8 +62,8 @@ console.log('\n--- Cloudflare Worker ---');
 const cfDefaultsPath = path.resolve(__dirname, '..', 'collectors', 'cloudflare-worker', 'src', 'defaults.js');
 const cfContent = fs.readFileSync(cfDefaultsPath, 'utf8');
 
-const cfBots = extractArray(cfContent, 'BOT_SIGNATURES');
-const cfRefs = extractArray(cfContent, 'AI_REFERRERS');
+const cfBots = extractJsArray(cfContent, 'BOT_SIGNATURES');
+const cfRefs = extractJsArray(cfContent, 'AI_REFERRERS');
 
 assert('CF bots count', cfBots.length === canonicalBots.length,
   `expected ${canonicalBots.length}, got ${cfBots.length}`);
@@ -140,12 +142,18 @@ process.exit(failed > 0 ? 1 : 0);
 // Helpers
 // -----------------------------------------------------------------
 
-function extractArray(content, varName) {
-  // Extract JS array from ESM or CJS export.
+function extractJsArray(content, varName) {
   const regex = new RegExp(`(?:const|export const|let|var)\\s+${varName}\\s*=\\s*\\[([\\s\\S]*?)\\];`);
   const match = content.match(regex);
   if (!match) return [];
   return match[1].match(/'([^']+)'/g).map((s) => s.replace(/'/g, ''));
+}
+
+function extractGoSlice(content, varName) {
+  const regex = new RegExp(`var\\s+${varName}\\s*=\\s*\\[\\]string\\{([\\s\\S]*?)\\}`);
+  const match = content.match(regex);
+  if (!match) return [];
+  return match[1].match(/"([^"]+)"/g).map((s) => s.replace(/"/g, ''));
 }
 
 function extractPythonList(content, varName) {
@@ -156,7 +164,6 @@ function extractPythonList(content, varName) {
 }
 
 function extractPhpArray(content, funcName) {
-  // Find the function/method body containing the return array.
   const regex = new RegExp(`function\\s+${funcName}[^{]*\\{[\\s\\S]*?return\\s+(?:array\\(|\\[)([\\s\\S]*?)(?:\\)|\\]);`, 'm');
   const match = content.match(regex);
   if (!match) return [];
