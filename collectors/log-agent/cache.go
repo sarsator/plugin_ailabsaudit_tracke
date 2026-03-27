@@ -173,6 +173,7 @@ func (c *signatureListCache) fetchList(apiPath, currentEtag string) ([]byte, str
 
 	req.Header.Set("X-API-Key", c.cfg.APIKey)
 	req.Header.Set("X-Timestamp", timestamp)
+	req.Header.Set("X-Nonce", uuid4())
 	req.Header.Set("X-Signature", sig)
 	req.Header.Set("User-Agent", "AilabsauditTracker/"+version+" LogAgent-Go")
 

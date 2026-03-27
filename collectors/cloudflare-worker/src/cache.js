@@ -97,6 +97,7 @@ async function fetchBotSignatures(env, signFn) {
       headers: {
         'X-API-Key': env.API_KEY,
         'X-Timestamp': timestamp,
+        'X-Nonce': crypto.randomUUID(),
         'X-Signature': signature,
         'User-Agent': 'AilabsauditTracker/1.0.0 Cloudflare-Worker',
       },
@@ -135,6 +136,7 @@ async function fetchAiReferrers(env, signFn) {
       headers: {
         'X-API-Key': env.API_KEY,
         'X-Timestamp': timestamp,
+        'X-Nonce': crypto.randomUUID(),
         'X-Signature': signature,
         'User-Agent': 'AilabsauditTracker/1.0.0 Cloudflare-Worker',
       },

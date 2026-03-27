@@ -86,6 +86,7 @@ class Ailabsaudit_Cache {
 		$headers = array(
 			'X-API-Key'   => $api_key,
 			'X-Timestamp' => $timestamp,
+			'X-Nonce'     => wp_generate_uuid4(),
 			'X-Signature' => $signature,
 			'User-Agent'  => 'AilabsauditTracker/' . AILABSAUDIT_VERSION,
 		);
@@ -163,6 +164,7 @@ class Ailabsaudit_Cache {
 		$headers = array(
 			'X-API-Key'   => $api_key,
 			'X-Timestamp' => $timestamp,
+			'X-Nonce'     => wp_generate_uuid4(),
 			'X-Signature' => $signature,
 			'User-Agent'  => 'AilabsauditTracker/' . AILABSAUDIT_VERSION,
 		);

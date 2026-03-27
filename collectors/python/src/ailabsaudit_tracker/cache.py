@@ -136,9 +136,11 @@ class ListCache:
         url_path = path.replace("/api/v1", "")
         url = self._api_url + url_path
 
+        import uuid as _uuid
         headers = {
             "X-API-Key": self._api_key,
             "X-Timestamp": timestamp,
+            "X-Nonce": str(_uuid.uuid4()),
             "X-Signature": signature,
             "User-Agent": "AilabsauditTracker/1.0.0 Python",
         }
