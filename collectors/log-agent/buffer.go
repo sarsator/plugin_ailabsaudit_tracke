@@ -19,6 +19,7 @@ type eventBuffer struct {
 	lastFlush     time.Time
 	retryCount    int
 	maxRetries    int
+	backoff       uint // exponential backoff counter for 429.
 	sendFn        func([]*event) sendResult
 	cancel        context.CancelFunc
 	done          chan struct{}
@@ -122,6 +123,7 @@ func (b *eventBuffer) doFlush() {
 	result := b.sendFn(events)
 	if result.Success {
 		b.retryCount = 0
+		b.backoff = 0
 		return
 	}
 
@@ -134,22 +136,33 @@ func (b *eventBuffer) doFlush() {
 		return
 	}
 
+	// Rate limited: exponential backoff before next retry.
+	if result.StatusCode == 429 {
+		b.backoff++
+		wait := time.Duration(1<<b.backoff) * time.Second
+		if wait > 5*time.Minute {
+			wait = 5 * time.Minute
+		}
+		log.Printf("Buffer: rate limited (429), backing off %v", wait)
+		time.Sleep(wait)
+	}
+
 	// Retry limit reached: drop events.
 	if b.retryCount >= b.maxRetries {
 		log.Printf("Buffer: max retries (%d) reached, %d events discarded", b.maxRetries, len(events))
 		atomic.AddUint64(&b.eventsDropped, uint64(len(events)))
 		b.retryCount = 0
+		b.backoff = 0
 		return
 	}
 
 	b.retryCount++
 
-	// Re-store: keep NEWEST events (old events go first, new buffer appended).
+	// Re-store: old events first, then new buffer (FIFO order).
 	b.mu.Lock()
 	combined := make([]*event, 0, b.maxSize)
 	combined = append(combined, events...)
 	combined = append(combined, b.events...)
-	// Keep oldest first (FIFO), truncate from the end if over cap.
 	if len(combined) > b.maxSize {
 		dropped := len(combined) - b.maxSize
 		combined = combined[:b.maxSize]

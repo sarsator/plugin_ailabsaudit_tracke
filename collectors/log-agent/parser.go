@@ -1,6 +1,9 @@
 package main
 
-import "regexp"
+import (
+	"regexp"
+	"strconv"
+)
 
 // logEntry holds parsed fields from an access log line.
 type logEntry struct {
@@ -21,7 +24,7 @@ var logPattern = regexp.MustCompile(
 		`"(\S+)\s+` + // method
 		`(\S+)\s+` + // URL
 		`[^"]*"\s+` + // protocol
-		`(\d{3})\s+` + // status code
+		`(\d{3})\s+` + // status code (exactly 3 digits via regex)
 		`(\S+)` + // response size
 		`(?:\s+"([^"]*)"\s+` + // referer
 		`"([^"]*)")?`, // user-agent
@@ -35,17 +38,17 @@ func parseLogLine(line string) *logEntry {
 		return nil
 	}
 
-	status := 0
-	for _, c := range m[4] {
-		status = status*10 + int(c-'0')
+	// Status code is guaranteed to be 3 digits by regex (\d{3}).
+	status, err := strconv.Atoi(m[4])
+	if err != nil || status < 100 || status > 599 {
+		return nil
 	}
 
 	size := 0
 	if m[5] != "-" {
-		for _, c := range m[5] {
-			if c >= '0' && c <= '9' {
-				size = size*10 + int(c-'0')
-			}
+		size, _ = strconv.Atoi(m[5])
+		if size < 0 {
+			size = 0
 		}
 	}
 
