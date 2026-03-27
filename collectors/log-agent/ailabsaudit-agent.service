@@ -1,0 +1,25 @@
+[Unit]
+Description=AI Labs Audit Log Agent — AI bot crawl and referral tracker
+Documentation=https://github.com/sarsator/plugin_ailabsaudit_tracke
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/python3 /opt/ailabsaudit/ailabsaudit-agent.py --config /etc/ailabsaudit/agent.conf
+Restart=always
+RestartSec=10
+User=ailabsaudit
+Group=ailabsaudit
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+ReadOnlyPaths=/
+ReadWritePaths=/var/log/ailabsaudit
+SupplementaryGroups=adm
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=ailabsaudit-agent
+
+[Install]
+WantedBy=multi-user.target
