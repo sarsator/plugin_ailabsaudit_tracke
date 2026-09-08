@@ -1,0 +1,47 @@
+{
+  "_commentaire": "Genere par scripts/generer_fixture_contrat_tracker.py depuis l'application Flask reelle. Ne pas editer a la main.",
+  "etag": "\"a86de173350a715f110244e86820e9acb669121c06048cac744562b863747de1\"",
+  "corps": {
+    "data": [
+      {
+        "domain": "chatgpt.com",
+        "id": 1,
+        "is_active": true,
+        "priority": 10,
+        "provider": "OpenAI",
+        "type": "llm"
+      },
+      {
+        "domain": "claude.ai",
+        "id": 2,
+        "is_active": true,
+        "priority": 9,
+        "provider": "Anthropic",
+        "type": "llm"
+      },
+      {
+        "domain": "notebooklm.google.com",
+        "id": 3,
+        "is_active": true,
+        "priority": 8,
+        "provider": "Google",
+        "type": "llm"
+      }
+    ],
+    "meta": {
+      "request_id": "1e1f1c9f-7d57-4418-905e-6e45c053f3d7",
+      "timestamp": "2026-09-08T06:49:54.893508Z"
+    },
+    "referrers": [
+      {
+        "domain": "chatgpt.com"
+      },
+      {
+        "domain": "claude.ai"
+      },
+      {
+        "domain": "notebooklm.google.com"
+      }
+    ]
+  }
+}

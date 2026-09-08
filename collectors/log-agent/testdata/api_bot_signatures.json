@@ -1,0 +1,89 @@
+{
+  "_commentaire": "Genere par scripts/generer_fixture_contrat_tracker.py depuis l'application Flask reelle. Ne pas editer a la main.",
+  "etag": "\"26045c2713de3db011a2cec6bf617ae07e08c679eecc930b2d0a47f0ccfb7818\"",
+  "corps": {
+    "data": [
+      {
+        "category": "llm_crawler",
+        "description": "Crawler OpenAI",
+        "id": "gptbot",
+        "ip_ranges_url": null,
+        "is_active": true,
+        "llm_associated": "ChatGPT / GPT",
+        "official_doc_url": "https://openai.com/gptbot",
+        "pattern": "GPTBot",
+        "pattern_type": "contains",
+        "provider": "OpenAI"
+      },
+      {
+        "category": "llm_crawler",
+        "description": "Crawler Anthropic",
+        "id": "claudebot",
+        "ip_ranges_url": null,
+        "is_active": true,
+        "llm_associated": "Claude",
+        "official_doc_url": null,
+        "pattern": "ClaudeBot",
+        "pattern_type": "contains",
+        "provider": "Anthropic"
+      },
+      {
+        "category": "llm_crawler",
+        "description": "Temoin discriminant",
+        "id": "ai21bot",
+        "ip_ranges_url": null,
+        "is_active": true,
+        "llm_associated": "Jurassic",
+        "official_doc_url": null,
+        "pattern": "AI21Bot",
+        "pattern_type": "contains",
+        "provider": "AI21"
+      },
+      {
+        "category": "llm_crawler",
+        "description": "Temoin discriminant",
+        "id": "amazon-kendra",
+        "ip_ranges_url": null,
+        "is_active": true,
+        "llm_associated": "Kendra",
+        "official_doc_url": null,
+        "pattern": "Amazon-Kendra",
+        "pattern_type": "contains",
+        "provider": "Amazon"
+      },
+      {
+        "category": "scraper",
+        "description": "Temoin discriminant",
+        "id": "apifybot",
+        "ip_ranges_url": null,
+        "is_active": true,
+        "llm_associated": null,
+        "official_doc_url": null,
+        "pattern": "ApifyBot",
+        "pattern_type": "contains",
+        "provider": "Apify"
+      }
+    ],
+    "meta": {
+      "request_id": "c1897562-9987-4329-8416-4dd8a4ab279a",
+      "timestamp": "2026-09-08T06:49:54.890146Z"
+    },
+    "signatures": [
+      {
+        "pattern": "GPTBot"
+      },
+      {
+        "pattern": "ClaudeBot"
+      },
+      {
+        "pattern": "AI21Bot"
+      },
+      {
+        "pattern": "Amazon-Kendra"
+      },
+      {
+        "pattern": "ApifyBot"
+      }
+    ]
+  }
+}
