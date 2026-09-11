@@ -1,0 +1,19 @@
+{%- comment -%}
+  VARIANTE H — declaration de decouverte dans le <head>.
+  Rendue cote serveur par Shopify : un crawler qui n'execute pas JavaScript la voit.
+  Ce n'est pas un lien cache : un <link rel> est une declaration standard, presente
+  dans le source de la page, destinee aux machines.
+{%- endcomment -%}
+<link rel="alternate"
+      type="text/markdown"
+      title="{{ shop.name | escape }} — informations pour les agents IA"
+      href="{{ shop.url }}/apps/{{ block.settings.subpath | default: 'ailabs' }}/agents.md">
+{% schema %}
+{
+  "name": "Variante H (head)",
+  "target": "head",
+  "settings": [
+    { "type": "text", "id": "subpath", "label": "Sous-chemin App Proxy", "default": "ailabs" }
+  ]
+}
+{% endschema %}

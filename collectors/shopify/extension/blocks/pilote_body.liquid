@@ -1,0 +1,23 @@
+{%- comment -%}
+  VARIANTE B — lien visible en pied de page.
+  Regle absolue : aucun masquage. Pas de display:none, pas de texte hors ecran,
+  pas de couleur de fond, pas de font-size:0, pas d'aria-hidden. Le lien est lisible
+  par un humain et explicable au marchand.
+  Statut : INSTRUMENT DE MESURE. Ne prejuge en rien de l'interface du produit final.
+{%- endcomment -%}
+<div class="ailabs-pilote-lien" style="padding:14px 0;text-align:center;font-size:13px;line-height:1.5;">
+  <a href="{{ shop.url }}/apps/{{ block.settings.subpath | default: 'ailabs' }}/guide-agents">
+    {{ block.settings.libelle | default: 'Informations pour les agents IA' }}
+  </a>
+</div>
+{% schema %}
+{
+  "name": "Variante B (lien visible)",
+  "target": "body",
+  "settings": [
+    { "type": "text", "id": "subpath", "label": "Sous-chemin App Proxy", "default": "ailabs" },
+    { "type": "text", "id": "libelle", "label": "Libelle du lien",
+      "default": "Informations pour les agents IA" }
+  ]
+}
+{% endschema %}

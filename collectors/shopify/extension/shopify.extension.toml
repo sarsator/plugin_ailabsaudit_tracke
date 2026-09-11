@@ -1,0 +1,15 @@
+# Extension du pilote de mesure — trois variantes, une seule question :
+# un lien present dans une page deja crawlee est-il suivi par les agents IA ?
+#
+# H : declaration machine-readable dans le <head>
+# B : lien HTML visible en pied de page
+# T : TEMOIN — aucun bloc, aucune declaration. L'URL temoin n'est liee nulle part.
+#     Elle mesure le bruit de fond des scanners qui devinent des chemins.
+#
+# Aucun secret ici : ces fichiers sont servis publiquement par Shopify.
+api_version = "2026-07"
+
+[[extensions]]
+type = "theme"
+name = "AI Labs — pilote de mesure"
+handle = "ailabs-pilote"
