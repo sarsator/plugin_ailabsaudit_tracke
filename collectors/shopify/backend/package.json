@@ -1,0 +1,12 @@
+{
+  "name": "ailabsaudit-shopify-collector",
+  "version": "0.1.0",
+  "description": "AI Labs Audit collector for Shopify, served through an App Proxy.",
+  "private": true,
+  "type": "module",
+  "license": "MIT",
+  "scripts": {
+    "test": "node --test tests/*.test.js",
+    "deploy": "wrangler deploy"
+  }
+}

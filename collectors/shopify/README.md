@@ -72,6 +72,13 @@ theme editor. Two behaviours worth knowing, both measured:
   servers hold divergent extension definitions. Treat
   `config/settings_data.json` as the source of truth, never a single HTML read.
 
+## The backend
+
+`backend/` is the App Proxy collector: it verifies Shopify's proxy signature,
+serves the entry points, identifies the agent by User-Agent and sends the event
+to the AI Labs Audit ingestion API under `plugin_type: "shopify"`, using the same
+HMAC contract as the other collectors. See `backend/README.md`.
+
 ## The pilot
 
 `pilot/` holds what the measurement pilot needs, and nothing that identifies a

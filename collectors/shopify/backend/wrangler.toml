@@ -1,0 +1,21 @@
+# Deployment for the Shopify App Proxy collector.
+#
+#   wrangler secret put SHOPIFY_APP_SECRET
+#   wrangler secret put STORE_MAP
+#
+# STORE_MAP is a JSON object keyed by shop domain:
+#   {"example.myshopify.com": {"client_id":"…","api_key":"…","api_secret":"…"}}
+#
+# For more than a handful of stores, bind a KV namespace called STORES instead
+# and write one JSON entry per shop domain.
+
+name = "ailabsaudit-shopify"
+main = "src/worker.js"
+compatibility_date = "2026-01-01"
+
+[vars]
+API_URL = "https://ailabsaudit.com/api/v1"
+
+# [[kv_namespaces]]
+# binding = "STORES"
+# id = "…"
