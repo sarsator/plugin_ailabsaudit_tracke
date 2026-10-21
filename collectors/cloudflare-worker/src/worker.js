@@ -88,13 +88,14 @@ function detectEvent(request, botSignatures, aiReferrers) {
   const ua = request.headers.get('user-agent') || '';
   const url = new URL(request.url);
   const pageUrl = url.pathname + url.search;
+  const referer = request.headers.get('referer') || '';
 
   // Check for AI bot
   if (ua) {
     const uaLower = ua.toLowerCase();
     for (const sig of botSignatures) {
       if (uaLower.includes(sig.toLowerCase())) {
-        return {
+        const event = {
           type: 'bot_crawl',
           user_agent: ua.substring(0, 500),
           url: pageUrl.substring(0, 2000),
@@ -102,12 +103,15 @@ function detectEvent(request, botSignatures, aiReferrers) {
           status_code: 200,
           response_size: 0,
         };
+        if (referer) {
+          event.referer = referer.substring(0, 2000);
+        }
+        return event;
       }
     }
   }
 
   // Check for AI referrer
-  const referer = request.headers.get('referer') || '';
   if (referer) {
     try {
       const refUrl = new URL(referer);
@@ -128,6 +132,44 @@ function detectEvent(request, botSignatures, aiReferrers) {
   }
 
   return null;
+}
+
+/**
+ * Extract structural page profile from HTML (no content stored).
+ * @param {string} html
+ * @returns {Object|null}
+ */
+function extractPageProfile(html) {
+  if (!html || html.indexOf('<') === -1) return null;
+  const scan = html.substring(0, 262144);
+  const count = (re) => (scan.match(re) || []).length;
+  const hasTable = count(/<table\b/gi) > 0;
+  const hasList = count(/<ul\b/gi) + count(/<ol\b/gi) > 0;
+  const li = count(/<li\b/gi);
+  let format = 'text';
+  if (hasTable && hasList) format = 'mixed';
+  else if (hasTable) format = 'table';
+  else if (hasList && li >= 5) format = 'list';
+  const titleMatch = scan.match(/<title[^>]*>([\s\S]*?)<\/title>/i);
+  const title = titleMatch
+    ? titleMatch[1].replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().substring(0, 200)
+    : '';
+  const text = scan
+    .replace(/<(script|style|noscript)\b[^>]*>[\s\S]*?<\/\1>/gi, ' ')
+    .replace(/<[^>]+>/g, ' ');
+  const words = text.match(/[^\W_]{2,}/g) || [];
+  return {
+    word_count: words.length,
+    has_table: hasTable,
+    has_list: hasList,
+    list_item_count: li,
+    heading_count: count(/<h[1-4]\b/gi),
+    paragraph_count: count(/<p\b/gi),
+    link_count: count(/<a\b/gi),
+    image_count: count(/<img\b/gi),
+    title: title,
+    format: format,
+  };
 }
 
 // -----------------------------------------------------------------
@@ -201,6 +243,38 @@ export default {
       const aiRefs = refResult.status === 'fulfilled' ? refResult.value : AI_REFERRERS;
 
       const event = detectEvent(request, botSigs, aiRefs);
+      if (event && event.type === 'bot_crawl') {
+        const resp = await fetch(request);
+        // On clone pour profiler la page sans consommer la réponse client.
+        const cloned = resp.clone();
+        ctx.waitUntil(
+          (async () => {
+            try {
+              event.status_code = resp.status;
+              const buf = await cloned.arrayBuffer();
+              event.response_size = buf.byteLength;
+              const ctype = (resp.headers.get('content-type') || '').toLowerCase();
+              if (buf.byteLength > 0 && buf.byteLength < 1024 * 1024 &&
+                  (!ctype || ctype.includes('html') || ctype.includes('xml'))) {
+                const html = new TextDecoder('utf-8', { fatal: false }).decode(buf);
+                const profile = extractPageProfile(html);
+                if (profile) event.page_profile = profile;
+              }
+            } catch (e) {
+              // best-effort
+            }
+            try {
+              const respSend = await sendEvents([event], env);
+              if (!respSend.ok && respSend.status !== 429) {
+                console.error(`AilabsAudit: API returned HTTP ${respSend.status}`);
+              }
+            } catch (err) {
+              console.error('AilabsAudit: send failed —', err.message);
+            }
+          })(),
+        );
+        return resp;
+      }
       if (event) {
         ctx.waitUntil(
           sendEvents([event], env)
@@ -222,4 +296,4 @@ export default {
 };
 
 // Export for testing
-export { sign, signatureHeader, detectEvent, BOT_SIGNATURES, AI_REFERRERS };
+export { sign, signatureHeader, detectEvent, extractPageProfile, BOT_SIGNATURES, AI_REFERRERS };

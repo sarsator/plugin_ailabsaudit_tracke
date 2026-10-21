@@ -43,7 +43,20 @@ Detected when an AI bot user-agent is identified on a page request.
   "url": "/blog/article-1",
   "timestamp": "2026-03-04T12:00:00+00:00",
   "status_code": 200,
-  "response_size": 0
+  "response_size": 45230,
+  "referer": "https://www.google.com/",
+  "page_profile": {
+    "word_count": 820,
+    "has_table": true,
+    "has_list": true,
+    "list_item_count": 12,
+    "heading_count": 6,
+    "paragraph_count": 14,
+    "link_count": 22,
+    "image_count": 3,
+    "title": "Article 1",
+    "format": "mixed"
+  }
 }
 ```
 
@@ -55,6 +68,25 @@ Detected when an AI bot user-agent is identified on a page request.
 | `timestamp` | string | Yes | ISO 8601 UTC (e.g. `2026-03-04T12:00:00+00:00`) |
 | `status_code` | integer | Yes | HTTP response status code |
 | `response_size` | integer | Yes | Response body size in bytes (0 if unknown) |
+| `referer` | string | No | HTTP Referer of the bot request (truncated to 2000 chars) |
+| `page_profile` | object | No | Structural profile of the page, no content stored (see below) |
+
+#### `page_profile` (optional)
+
+Structural metrics only. The collector never stores page text.
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `word_count` | integer | Approximate visible word count |
+| `has_table` | boolean | Page contains a `<table>` |
+| `has_list` | boolean | Page contains `<ul>` or `<ol>` |
+| `list_item_count` | integer | Number of `<li>` |
+| `heading_count` | integer | `h1`..`h4` count |
+| `paragraph_count` | integer | `<p>` count |
+| `link_count` | integer | `<a>` count |
+| `image_count` | integer | `<img>` count |
+| `title` | string | Page title (truncated to 200 chars) |
+| `format` | string | Dominant format: `table`, `list`, `mixed`, `text` |
 
 ### `ai_referral`
 
