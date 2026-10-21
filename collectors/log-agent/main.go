@@ -19,7 +19,8 @@ import (
 	"time"
 )
 
-const version = "1.0.0"
+// version is overridable at build time via -ldflags "-X main.version=x.y.z"
+var version = "1.1.0"
 
 func main() {
 	configPath := flag.String("config", "/etc/ailabsaudit/agent.conf", "Path to config file")
