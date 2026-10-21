@@ -4,7 +4,7 @@ Tags: ai, seo, bots, tracking, gptbot, claudebot, perplexity, aeo
 Requires at least: 5.8
 Tested up to: 6.7
 Requires PHP: 7.4
-Stable tag: 1.0.0
+Stable tag: 1.1.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -67,6 +67,11 @@ Yes. The plugin does not collect any personal data (no IP, no cookies, no PII).
 API Key, HMAC Secret, and Client ID are provided in your dashboard when you register your site.
 
 == Changelog ==
+
+= 1.1.0 =
+* Bot crawls include referer and page_profile (structure only)
+* Faster flush (60s) for live audit correlation
+* No page content stored
 
 = 1.0.0 =
 * Initial release

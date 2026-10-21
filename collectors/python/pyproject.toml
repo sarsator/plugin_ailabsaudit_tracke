@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "ailabsaudit-tracker"
-version = "1.0.0"
+version = "1.1.0"
 description = "Zero-dependency Python collector for AI Labs Audit — HMAC-SHA256 signed event tracking."
 readme = "README.md"
 license = {text = "MIT"}

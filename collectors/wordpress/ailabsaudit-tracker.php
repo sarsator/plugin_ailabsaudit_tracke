@@ -3,7 +3,7 @@
  * Plugin Name: AI Labs Audit Tracker
  * Plugin URI: https://github.com/ailabsaudit/tracker
  * Description: Track AI bot crawls and AI-generated referral traffic on your website.
- * Version: 1.0.0
+ * Version: 1.1.0
  * Requires at least: 5.8
  * Requires PHP: 7.4
  * Author: AI Labs Audit
@@ -19,7 +19,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'AILABSAUDIT_VERSION', '1.0.0' );
+define( 'AILABSAUDIT_VERSION', '1.1.0' );
 define( 'AILABSAUDIT_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 define( 'AILABSAUDIT_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
 // Default API base URL — override via Settings > AI Labs Audit > API URL.
