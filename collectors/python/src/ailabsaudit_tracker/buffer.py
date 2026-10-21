@@ -11,8 +11,8 @@ import time
 from typing import Any, Callable, Dict, List
 
 MAX_BUFFER_SIZE = 500
-FLUSH_INTERVAL = 300    # 5 minutes in seconds.
-FLUSH_DEBOUNCE = 30     # 30 seconds.
+FLUSH_INTERVAL = 60     # 60 secondes : latence live pour corréler crawls et prompts.
+FLUSH_DEBOUNCE = 10     # 10 secondes.
 MAX_RETRIES = 3
 
 logger = logging.getLogger("ailabsaudit")

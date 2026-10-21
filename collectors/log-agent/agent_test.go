@@ -161,6 +161,36 @@ func TestDetectBotCrawl(t *testing.T) {
 	assertEqual(t, "url", e.URL, "/page")
 }
 
+func TestDetectBotCrawlKeepsReferer(t *testing.T) {
+	initTestCache()
+	e := detectEvent(&logEntry{
+		UserAgent:    "Mozilla/5.0 (compatible; GPTBot/1.0)",
+		URL:          "/pricing",
+		StatusCode:   200,
+		ResponseSize: 4200,
+		Referer:      "https://www.google.com/search?q=seo",
+	})
+	if e == nil {
+		t.Fatal("expected event")
+	}
+	assertEqual(t, "type", e.Type, "bot_crawl")
+	assertEqual(t, "referer", e.Referer, "https://www.google.com/search?q=seo")
+}
+
+func TestDetectBotCrawlDashReferer(t *testing.T) {
+	initTestCache()
+	e := detectEvent(&logEntry{
+		UserAgent:  "GPTBot/1.0",
+		URL:        "/",
+		StatusCode: 200,
+		Referer:    "-",
+	})
+	if e == nil {
+		t.Fatal("expected event")
+	}
+	assertEqual(t, "referer empty", e.Referer, "")
+}
+
 func TestDetectAiReferral(t *testing.T) {
 	initTestCache()
 	e := detectEvent(&logEntry{

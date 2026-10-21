@@ -61,6 +61,7 @@ type event struct {
 	Timestamp      string `json:"timestamp"`
 	StatusCode     int    `json:"status_code,omitempty"`
 	ResponseSize   int    `json:"response_size,omitempty"`
+	Referer        string `json:"referer,omitempty"`
 	ReferrerDomain string `json:"referrer_domain,omitempty"`
 }
 
@@ -80,16 +81,25 @@ func detectEvent(entry *logEntry) *event {
 	if len(url) > 2000 {
 		url = url[:2000]
 	}
+	referer := entry.Referer
+	if referer == "-" {
+		referer = ""
+	}
+	if len(referer) > 2000 {
+		referer = referer[:2000]
+	}
 
 	if matched := matchBot(entry.UserAgent, sigs); matched != "" {
-		return &event{
+		ev := &event{
 			Type:         "bot_crawl",
 			UserAgent:    ua,
 			URL:          url,
 			Timestamp:    now,
 			StatusCode:   entry.StatusCode,
 			ResponseSize: entry.ResponseSize,
+			Referer:      referer,
 		}
+		return ev
 	}
 
 	if matched := matchReferrer(entry.Referer, refs); matched != "" {

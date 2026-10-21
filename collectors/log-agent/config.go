@@ -84,14 +84,15 @@ func loadConfig(path string) (*config, error) {
 		return nil, fmt.Errorf("buffer_size must be <= 10000, got %d", raw.BufferSize)
 	}
 
-	cfg.FlushInterval = 5 * time.Minute
+	cfg.FlushInterval = 60 * time.Second
 	if raw.FlushInterval > 0 && raw.FlushInterval <= 3600 {
 		cfg.FlushInterval = time.Duration(raw.FlushInterval) * time.Second
 	} else if raw.FlushInterval > 3600 {
 		return nil, fmt.Errorf("flush_interval_seconds must be <= 3600, got %d", raw.FlushInterval)
 	}
 
-	cfg.FlushDebounce = 30 * time.Second
+	// Debounce court : latence live acceptable pour corréler crawls et prompts.
+	cfg.FlushDebounce = 10 * time.Second
 	if raw.FlushDebounce > 0 && raw.FlushDebounce <= 300 {
 		cfg.FlushDebounce = time.Duration(raw.FlushDebounce) * time.Second
 	} else if raw.FlushDebounce > 300 {
