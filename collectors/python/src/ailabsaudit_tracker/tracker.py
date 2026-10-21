@@ -59,7 +59,11 @@ class AilabsTracker:
         timeout: HTTP timeout in seconds.
     """
 
-    VERSION = "1.0.0"
+    # Source unique : __version__ du paquet. Évite la dérive VERSION vs __init__.
+    try:
+        from . import __version__ as VERSION
+    except Exception:
+        VERSION = "1.1.0"
     # Override with your API domain.
     DEFAULT_API_URL = "https://YOUR_API_DOMAIN/api/v1"
 
